@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小红书Cookie池管理系统</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="logo">
+                <i class="fas fa-cookie"></i>
+                <span>Cookie池管理</span>
+            </div>
+            <nav class="nav-menu">
+                <a href="#dashboard" class="nav-item active" data-tab="dashboard">
+                    <i class="fas fa-chart-line"></i>
+                    <span>仪表板</span>
+                </a>
+                <a href="#cookies" class="nav-item" data-tab="cookies">
+                    <i class="fas fa-list"></i>
+                    <span>Cookie列表</span>
+                </a>
+                <a href="#import" class="nav-item" data-tab="import">
+                    <i class="fas fa-file-import"></i>
+                    <span>导入Cookie</span>
+                </a>
+                <a href="#batch" class="nav-item" data-tab="batch">
+                    <i class="fas fa-tasks"></i>
+                    <span>批量操作</span>
+                </a>
+                <a href="#settings" class="nav-item" data-tab="settings">
+                    <i class="fas fa-cog"></i>
+                    <span>设置</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 顶部栏 -->
+            <header class="top-bar">
+                <div class="title-section">
+                    <h1>小红书Cookie池管理系统</h1>
+                </div>
+                <div class="header-actions">
+                    <button class="btn btn-refresh" id="refreshBtn">
+                        <i class="fas fa-sync-alt"></i> 刷新
+                    </button>
+                    <div class="user-info">
+                        <span id="serverStatus" class="status-indicator">●</span>
+                        <span>系统状态</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- 内容区 -->
+            <div class="content-area">
+                <!-- Dashboard Tab -->
+                <section id="dashboard" class="tab-content active">
+                    <h2 class="section-title">仪表板</h2>
+                    
+                    <!-- 统计卡片 -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                <i class="fas fa-cookie-bite"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-label">总数</div>
+                                <div class="stat-value" id="totalCookies">-</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                                <i class="fas fa-check-circle"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-label">可用</div>
+                                <div class="stat-value" id="availableCookies">-</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                                <i class="fas fa-hourglass-start"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-label">使用中</div>
+                                <div class="stat-value" id="usingCookies">-</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                                <i class="fas fa-times-circle"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-label">失效</div>
+                                <div class="stat-value" id="invalidCookies">-</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);">
+                                <i class="fas fa-ban"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-label">黑名单</div>
+                                <div class="stat-value" id="blacklistCookies">-</div>
+                            </div>
+                        </div>
+
+                        <div class="stat-card">
+                            <div class="stat-icon" style="background: linear-gradient(135deg, #ff9a56 0%, #ff6a88 100%);">
+                                <i class="fas fa-fire"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-label">平均使用次数</div>
+                                <div class="stat-value" id="avgUseCount">-</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 图表区域 -->
+                    <div class="chart-section">
+                        <div class="chart-card">
+                            <h3>Cookie状态分布</h3>
+                            <canvas id="statusChart"></canvas>
+                        </div>
+                        <div class="chart-card">
+                            <h3>使用频率统计</h3>
+                            <canvas id="usageChart"></canvas>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Cookie列表 Tab -->
+                <section id="cookies" class="tab-content">
+                    <h2 class="section-title">Cookie列表</h2>
+                    
+                    <div class="filter-section">
+                        <div class="filter-group">
+                            <input type="text" id="searchIP" placeholder="搜索IP..." class="filter-input">
+                            <select id="statusFilter" class="filter-input">
+                                <option value="">所有状态</option>
+                                <option value="0">可用</option>
+                                <option value="1">使用中</option>
+                                <option value="2">失效</option>
+                                <option value="3">黑名单</option>
+                            </select>
+                            <button class="btn btn-primary" id="searchBtn">搜索</button>
+                        </div>
+                        <div class="filter-group">
+                            <span>每页显示:</span>
+                            <select id="pageSize" class="filter-input">
+                                <option value="10">10条</option>
+                                <option value="25">25条</option>
+                                <option value="50">50条</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Cookie表格 -->
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>
+                                        <input type="checkbox" id="selectAll" class="table-checkbox">
+                                    </th>
+                                    <th>ID</th>
+                                    <th>IP地址</th>
+                                    <th>状态</th>
+                                    <th>使用次数</th>
+                                    <th>最后使用</th>
+                                    <th>最后检测</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cookieTable">
+                                <tr>
+                                    <td colspan="8" class="text-center">加载中...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 分页 -->
+                    <div class="pagination">
+                        <button class="btn btn-sm" id="prevPage">上一页</button>
+                        <span id="pageInfo">第 0 页</span>
+                        <button class="btn btn-sm" id="nextPage">下一页</button>
+                    </div>
+                </section>
+
+                <!-- 导入Cookie Tab -->
+                <section id="import" class="tab-content">
+                    <h2 class="section-title">导入Cookie</h2>
+                    
+                    <div class="import-section">
+                        <div class="import-input-area">
+                            <h3>输入方式</h3>
+                            <div class="input-methods">
+                                <button class="method-tab active" data-method="textarea">文本输入</button>
+                                <button class="method-tab" data-method="file">文件上传</button>
+                            </div>
+
+                            <!-- 文本输入 -->
+                            <div id="textarea-method" class="method-content active">
+                                <div class="form-group">
+                                    <label>粘贴Cookie（每行一个，格式：IP cookie或IP cookie validUntil）</label>
+                                    <textarea id="cookieInput" placeholder="192.168.1.1 sessionid=xxx; path=/; secure
+192.168.1.2 sessionid=yyy; path=/; secure 2024-02-20T10:00:00Z" rows="10"></textarea>
+                                    <small>支持的格式：
+                                        <br>• IP cookie
+                                        <br>• IP cookie validUntil
+                                    </small>
+                                </div>
+                            </div>
+
+                            <!-- 文件上传 -->
+                            <div id="file-method" class="method-content">
+                                <div class="file-upload-area" id="fileDropZone">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                    <p>拖拽文件到此处或点击选择</p>
+                                    <input type="file" id="fileInput" accept=".txt,.csv,.json" style="display: none;">
+                                </div>
+                                <div id="fileInfo" style="display: none; margin-top: 10px;">
+                                    <p>已选择文件：<strong id="fileName"></strong></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 导入统计 -->
+                        <div class="import-stats">
+                            <h3>导入统计</h3>
+                            <div class="stat-item">
+                                <span>待导入数量</span>
+                                <span id="pendingCount">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span>成功导入</span>
+                                <span id="successCount">0</span>
+                            </div>
+                            <div class="stat-item">
+                                <span>导入失败</span>
+                                <span id="failCount">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 进度条 -->
+                    <div class="progress-area" id="progressArea" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <p id="progressText">处理中...</p>
+                    </div>
+
+                    <!-- 导入按钮 -->
+                    <div class="action-buttons">
+                        <button class="btn btn-primary" id="importBtn">开始导入</button>
+                        <button class="btn btn-secondary" id="clearBtn">清除</button>
+                    </div>
+
+                    <!-- 导入结果 -->
+                    <div id="importResults" class="import-results" style="display: none;">
+                        <h3>导入结果</h3>
+                        <div id="resultsList"></div>
+                    </div>
+                </section>
+
+                <!-- 批量操作 Tab -->
+                <section id="batch" class="tab-content">
+                    <h2 class="section-title">批量操作</h2>
+                    
+                    <div class="batch-section">
+                        <div class="batch-input">
+                            <h3>输入Cookie ID</h3>
+                            <textarea id="batchInput" placeholder="输入Cookie ID，每行一个&#10;例如：1,2,3&#10;或：1&#10;2&#10;3" rows="8"></textarea>
+                        </div>
+
+                        <div class="batch-actions">
+                            <h3>选择操作</h3>
+                            <div class="action-buttons-vertical">
+                                <button class="btn btn-action btn-validate" id="batchValidateBtn">
+                                    <i class="fas fa-check"></i>验证选中
+                                </button>
+                                <button class="btn btn-action btn-blacklist" id="batchBlacklistBtn">
+                                    <i class="fas fa-ban"></i>添加黑名单
+                                </button>
+                                <button class="btn btn-action btn-release" id="batchReleaseBtn">
+                                    <i class="fas fa-lock-open"></i>释放
+                                </button>
+                                <button class="btn btn-action btn-delete" id="batchDeleteBtn">
+                                    <i class="fas fa-trash"></i>删除
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="batch-preview">
+                            <h3>操作预览</h3>
+                            <div id="batchPreview">
+                                <p class="text-muted">选择操作后显示预览...</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 执行结果 -->
+                    <div id="batchResults" class="batch-results" style="display: none;">
+                        <h3>执行结果</h3>
+                        <div id="batchResultsList"></div>
+                    </div>
+                </section>
+
+                <!-- 设置 Tab -->
+                <section id="settings" class="tab-content">
+                    <h2 class="section-title">系统设置</h2>
+                    
+                    <div class="settings-section">
+                        <h3>服务器信息</h3>
+                        <div class="info-group">
+                            <label>API基础URL</label>
+                            <input type="text" id="apiUrl" class="info-input" readonly>
+                        </div>
+                        <div class="info-group">
+                            <label>系统版本</label>
+                            <input type="text" value="1.1.0" class="info-input" readonly>
+                        </div>
+                        <div class="info-group">
+                            <label>服务器状态</label>
+                            <input type="text" id="serverInfo" class="info-input" readonly>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>数据导出</h3>
+                        <div class="export-buttons">
+                            <button class="btn btn-secondary" id="exportCsvBtn">
+                                <i class="fas fa-download"></i>导出为CSV
+                            </button>
+                            <button class="btn btn-secondary" id="exportJsonBtn">
+                                <i class="fas fa-download"></i>导出为JSON
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>清理任务</h3>
+                        <div class="clean-buttons">
+                            <button class="btn btn-warning" id="cleanInvalidBtn">
+                                清理失效Cookie
+                            </button>
+                            <button class="btn btn-warning" id="cleanBlacklistBtn">
+                                清空黑名单
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- 模态框 - Cookie详情 -->
+    <div id="detailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Cookie详情</h3>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- 详情内容将动态加载 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 模态框 - 确认操作 -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3 id="confirmTitle">确认操作</h3>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelBtn">取消</button>
+                <button class="btn btn-danger" id="confirmBtn">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 通知提示 -->
+    <div id="notification" class="notification"></div>
+
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+</body>
+</html>

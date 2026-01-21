@@ -19,6 +19,10 @@ app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+// 静态文件服务 - 后台管理页面
+const path = require('path');
+app.use(express.static(path.join(__dirname, 'public')));
+
 // 请求日志
 app.use((req, res, next) => {
   const start = Date.now();
@@ -41,11 +45,16 @@ const errorHandler = (err, req, res, next) => {
 
 // 健康检查
 app.get('/health', (req, res) => {
-  res.json({
-    code: 200,
-    message: 'OK',
-    data: { status: 'healthy' }
-  });
+   res.json({
+     code: 200,
+     message: 'OK',
+     data: { status: 'healthy' }
+   });
+});
+
+// 管理页面路由
+app.get('/', (req, res) => {
+   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // API路由
