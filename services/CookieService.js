@@ -288,12 +288,12 @@ class CookieService {
     try {
       const stats = await CookieModel.getStats();
       return {
-        total: stats.total || 0,
-        available: stats.available || 0,
-        using: stats.using || 0,
-        invalid: stats.invalid || 0,
-        blacklist: stats.blacklist || 0,
-        totalUseCount: stats.totalUseCount || 0,
+        total: parseInt(stats.total) || 0,
+        available: parseInt(stats.available) || 0,
+        using: parseInt(stats.using) || 0,
+        invalid: parseInt(stats.invalid) || 0,
+        blacklist: parseInt(stats.blacklist) || 0,
+        totalUseCount: parseInt(stats.totalUseCount) || 0,
         avgUseCount: parseFloat(stats.avgUseCount || 0).toFixed(2)
       };
     } catch (error) {

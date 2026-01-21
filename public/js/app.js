@@ -136,20 +136,50 @@ class CookieAdminApp {
     async loadDashboard() {
         try {
             const data = await api.getStatistics();
-            if (data.code === 200) {
+            if (data && data.code === 200 && data.data) {
                 const stats = data.data;
-                document.getElementById('totalCookies').textContent = stats.total;
-                document.getElementById('availableCookies').textContent = stats.available;
-                document.getElementById('usingCookies').textContent = stats.using;
-                document.getElementById('invalidCookies').textContent = stats.invalid;
-                document.getElementById('blacklistCookies').textContent = stats.blacklist;
-                document.getElementById('avgUseCount').textContent = stats.avgUseCount;
+                
+                // 验证并转换数据类型
+                const totalCookies = parseInt(stats.total) || 0;
+                const availableCookies = parseInt(stats.available) || 0;
+                const usingCookies = parseInt(stats.using) || 0;
+                const invalidCookies = parseInt(stats.invalid) || 0;
+                const blacklistCookies = parseInt(stats.blacklist) || 0;
+                const avgUseCount = parseFloat(stats.avgUseCount) || 0;
 
-                this.updateCharts(stats);
+                // 更新DOM元素
+                const elements = {
+                    'totalCookies': totalCookies,
+                    'availableCookies': availableCookies,
+                    'usingCookies': usingCookies,
+                    'invalidCookies': invalidCookies,
+                    'blacklistCookies': blacklistCookies,
+                    'avgUseCount': avgUseCount.toFixed(2)
+                };
+
+                for (const [id, value] of Object.entries(elements)) {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        element.textContent = value;
+                    } else {
+                        console.warn(`Element with id "${id}" not found`);
+                    }
+                }
+
+                // 更新图表（传递转换后的数据）
+                this.updateCharts({
+                    total: totalCookies,
+                    available: availableCookies,
+                    using: usingCookies,
+                    invalid: invalidCookies,
+                    blacklist: blacklistCookies,
+                });
+            } else {
+                throw new Error('Invalid response format from API');
             }
         } catch (error) {
-            this.showNotification('获取统计数据失败', 'error');
-            console.error(error);
+            console.error('Dashboard error:', error);
+            this.showNotification('获取统计数据失败：' + (error.message || '未知错误'), 'error');
         }
     }
 
@@ -157,69 +187,95 @@ class CookieAdminApp {
      * 更新图表
      */
     updateCharts(stats) {
-        // 状态分布图
-        const statusCtx = document.getElementById('statusChart').getContext('2d');
-        if (this.charts.statusChart) {
-            this.charts.statusChart.destroy();
-        }
-        this.charts.statusChart = new Chart(statusCtx, {
-            type: 'doughnut',
-            data: {
-                labels: ['可用', '使用中', '失效', '黑名单'],
-                datasets: [{
-                    data: [stats.available, stats.using, stats.invalid, stats.blacklist],
-                    backgroundColor: [
-                        '#52c41a',
-                        '#1890ff',
-                        '#f5222d',
-                        '#722ed1',
-                    ],
-                    borderColor: '#ffffff',
-                    borderWidth: 2,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: {
-                        position: 'bottom',
-                    },
-                },
-            },
-        });
+        try {
+            // 确保数据是数字类型
+            const data = {
+                total: parseInt(stats.total) || 0,
+                available: parseInt(stats.available) || 0,
+                using: parseInt(stats.using) || 0,
+                invalid: parseInt(stats.invalid) || 0,
+                blacklist: parseInt(stats.blacklist) || 0,
+            };
 
-        // 使用频率图（简单直方图）
-        const usageCtx = document.getElementById('usageChart').getContext('2d');
-        if (this.charts.usageChart) {
-            this.charts.usageChart.destroy();
+            // 状态分布图
+            const statusCtx = document.getElementById('statusChart');
+            if (!statusCtx) {
+                console.warn('statusChart canvas element not found');
+                return;
+            }
+
+            if (this.charts.statusChart) {
+                this.charts.statusChart.destroy();
+            }
+
+            this.charts.statusChart = new Chart(statusCtx.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['可用', '使用中', '失效', '黑名单'],
+                    datasets: [{
+                        data: [data.available, data.using, data.invalid, data.blacklist],
+                        backgroundColor: [
+                            '#52c41a',
+                            '#1890ff',
+                            '#f5222d',
+                            '#722ed1',
+                        ],
+                        borderColor: '#ffffff',
+                        borderWidth: 2,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        },
+                    },
+                },
+            });
+
+            // 使用频率图（简单直方图）
+            const usageCtx = document.getElementById('usageChart');
+            if (!usageCtx) {
+                console.warn('usageChart canvas element not found');
+                return;
+            }
+
+            if (this.charts.usageChart) {
+                this.charts.usageChart.destroy();
+            }
+
+            this.charts.usageChart = new Chart(usageCtx.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: ['总数', '可用', '使用中', '失效', '黑名单'],
+                    datasets: [{
+                        label: '数量',
+                        data: [data.total, data.available, data.using, data.invalid, data.blacklist],
+                        backgroundColor: '#667eea',
+                        borderRadius: 4,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false,
+                        },
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                        },
+                    },
+                },
+            });
+        } catch (error) {
+            console.error('Error updating charts:', error);
+            this.showNotification('图表加载失败，请刷新页面', 'error');
         }
-        this.charts.usageChart = new Chart(usageCtx, {
-            type: 'bar',
-            data: {
-                labels: ['总数', '可用', '使用中', '失效', '黑名单'],
-                datasets: [{
-                    label: '数量',
-                    data: [stats.total, stats.available, stats.using, stats.invalid, stats.blacklist],
-                    backgroundColor: '#667eea',
-                    borderRadius: 4,
-                }],
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: {
-                        display: false,
-                    },
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                    },
-                },
-            },
-        });
     }
 
     /**
