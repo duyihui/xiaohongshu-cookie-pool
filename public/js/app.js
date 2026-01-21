@@ -183,32 +183,43 @@ class CookieAdminApp {
         }
     }
 
-    /**
-     * 更新图表
-     */
-    updateCharts(stats) {
-        try {
-            // 确保数据是数字类型
-            const data = {
-                total: parseInt(stats.total) || 0,
-                available: parseInt(stats.available) || 0,
-                using: parseInt(stats.using) || 0,
-                invalid: parseInt(stats.invalid) || 0,
-                blacklist: parseInt(stats.blacklist) || 0,
-            };
+     /**
+      * 更新图表
+      */
+     updateCharts(stats) {
+         try {
+             // 检查Chart.js是否加载
+             if (typeof Chart === 'undefined') {
+                 console.error('Chart.js is not loaded');
+                 this.showNotification('图表库未加载，请刷新页面', 'error');
+                 return;
+             }
 
-            // 状态分布图
-            const statusCtx = document.getElementById('statusChart');
-            if (!statusCtx) {
-                console.warn('statusChart canvas element not found');
-                return;
-            }
+             // 确保数据是数字类型
+             const data = {
+                 total: parseInt(stats.total) || 0,
+                 available: parseInt(stats.available) || 0,
+                 using: parseInt(stats.using) || 0,
+                 invalid: parseInt(stats.invalid) || 0,
+                 blacklist: parseInt(stats.blacklist) || 0,
+             };
 
-            if (this.charts.statusChart) {
-                this.charts.statusChart.destroy();
-            }
+             console.log('Updating charts with data:', data);
 
-            this.charts.statusChart = new Chart(statusCtx.getContext('2d'), {
+             // 状态分布图
+             const statusCtx = document.getElementById('statusChart');
+             if (!statusCtx) {
+                 console.error('statusChart canvas element not found');
+                 this.showNotification('图表元素未找到，请刷新页面', 'error');
+                 return;
+             }
+
+             if (this.charts.statusChart) {
+                 this.charts.statusChart.destroy();
+             }
+
+             console.log('Creating statusChart...');
+             this.charts.statusChart = new Chart(statusCtx.getContext('2d'), {
                 type: 'doughnut',
                 data: {
                     labels: ['可用', '使用中', '失效', '黑名单'],
@@ -235,18 +246,20 @@ class CookieAdminApp {
                 },
             });
 
-            // 使用频率图（简单直方图）
-            const usageCtx = document.getElementById('usageChart');
-            if (!usageCtx) {
-                console.warn('usageChart canvas element not found');
-                return;
-            }
+             // 使用频率图（简单直方图）
+             const usageCtx = document.getElementById('usageChart');
+             if (!usageCtx) {
+                 console.error('usageChart canvas element not found');
+                 this.showNotification('图表元素未找到，请刷新页面', 'error');
+                 return;
+             }
 
-            if (this.charts.usageChart) {
-                this.charts.usageChart.destroy();
-            }
+             if (this.charts.usageChart) {
+                 this.charts.usageChart.destroy();
+             }
 
-            this.charts.usageChart = new Chart(usageCtx.getContext('2d'), {
+             console.log('Creating usageChart...');
+             this.charts.usageChart = new Chart(usageCtx.getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels: ['总数', '可用', '使用中', '失效', '黑名单'],
@@ -875,5 +888,11 @@ class CookieAdminApp {
     }
 }
 
-// 应用启动
-const app = new CookieAdminApp();
+// 应用启动 - 等待DOM完全加载
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        const app = new CookieAdminApp();
+    });
+} else {
+    const app = new CookieAdminApp();
+}

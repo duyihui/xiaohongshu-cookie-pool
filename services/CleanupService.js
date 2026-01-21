@@ -75,8 +75,8 @@ class CleanupService {
    * 定期检测所有Cookie
    */
   static startValidationJob() {
-    // 每1分钟检测一次
-    const intervalMs = 60 * 1000;
+    // 每5分钟检测一次
+    const intervalMs = 300 * 1000;
     
     setInterval(() => {
       this.validateAllCookies();
