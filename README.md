@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-# xiaohongshu-cookie-pool
-=======
 # 小红书 Cookie 池
 
 一个完整的小红书Cookie池管理系统，支持Cookie导入、有效性检测、随机获取等功能。
@@ -74,5 +71,4 @@ npm run migrate
 
 ## 许可证
 
-MIT
->>>>>>> 891c99c (Initial commit: 小红书Cookie池管理系统 v1.1.0 - 完整的Cookie验证和管理系统，支持X-s签名集成)
+
