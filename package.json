@@ -1,0 +1,30 @@
+{
+  "name": "xiaohongshu-cookie-pool",
+  "version": "1.0.0",
+  "description": "小红书Cookie池管理系统",
+  "main": "index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest",
+    "migrate": "node migrations/run.js"
+  },
+  "keywords": ["xiaohongshu", "cookie", "pool", "proxy"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mysql2": "^3.6.5",
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1",
+    "joi": "^17.11.0",
+    "uuid": "^9.0.1",
+    "winston": "^3.11.0",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2",
+    "jest": "^29.7.0"
+  }
+}
