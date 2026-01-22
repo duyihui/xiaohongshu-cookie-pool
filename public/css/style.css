@@ -2448,27 +2448,57 @@ input[type="text"]::placeholder {
 .form-control,
 .form-textarea {
     padding: 12px 14px;
-    border: 1px solid var(--border-color);
+    border: 1.5px solid var(--border-color);
     border-radius: var(--radius-md);
     font-size: 13px;
     background: var(--bg-primary);
     color: var(--text-primary);
-    transition: all 0.2s ease;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     font-family: inherit;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.02);
+}
+
+.form-control:hover,
+.form-textarea:hover {
+    border-color: #d1d5db;
+    box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.04);
 }
 
 .form-control:focus,
 .form-textarea:focus {
     outline: none;
     border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1), 0 2px 6px 0 rgba(37, 99, 235, 0.15);
     background: var(--bg-primary);
+}
+
+.form-control::placeholder,
+.form-textarea::placeholder {
+    color: var(--text-tertiary);
 }
 
 .form-textarea {
     min-height: 100px;
     resize: vertical;
     font-family: 'Courier New', monospace;
+    line-height: 1.5;
+}
+
+/* 只读输入框样式 */
+.info-input {
+    padding: 12px 14px;
+    border: 1.5px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    font-family: 'Courier New', monospace;
+    cursor: not-allowed;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.info-input:hover {
+    background: #f0f1f3;
 }
 
 /* 模态框页脚按钮 */
@@ -2483,6 +2513,158 @@ input[type="text"]::placeholder {
     padding: 10px 24px;
     font-size: 13px;
     font-weight: 600;
+}
+
+/* ============================================
+ * 编辑模态框高级优化
+ * ============================================ */
+
+#editModal .modal-content {
+    max-width: 600px;
+}
+
+#editModal .modal-header {
+    border-bottom: 2px solid var(--border-color);
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+}
+
+#editModal .modal-header h3 {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#editModal .modal-header h3::before {
+    content: '✎';
+    color: var(--primary-color);
+    font-size: 20px;
+}
+
+#editModal .form-group {
+    margin-bottom: 20px;
+}
+
+#editModal .form-group:last-child {
+    margin-bottom: 0;
+}
+
+#editModal .form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+
+#editModal .form-control,
+#editModal .form-textarea {
+    width: 100%;
+}
+
+#editModal .form-control,
+#editModal .form-textarea,
+#editModal .info-input {
+    display: block;
+    width: 100%;
+    padding: 12px 14px;
+    border: 1.5px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-size: 13px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#editModal .form-control:hover,
+#editModal .form-textarea:hover {
+    border-color: #d1d5db;
+    box-shadow: 0 2px 4px 0 rgba(0, 0, 0, 0.04);
+}
+
+#editModal .form-control:focus,
+#editModal .form-textarea:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1), 0 2px 6px 0 rgba(37, 99, 235, 0.15);
+    background: var(--bg-primary);
+    transform: translateY(-1px);
+}
+
+#editModal .form-textarea {
+    min-height: 120px;
+    resize: vertical;
+    font-family: 'Courier New', monospace;
+    line-height: 1.6;
+}
+
+#editModal .info-input {
+    background: var(--bg-tertiary);
+    cursor: not-allowed;
+}
+
+#editModal .info-input:hover {
+    background: #f0f1f3;
+    border-color: var(--border-color);
+}
+
+#editModal .modal-body {
+    padding: 8px 0;
+}
+
+#editModal .modal-footer {
+    padding-top: 24px;
+    border-top: 1px solid var(--border-color);
+    margin-top: 28px;
+}
+
+#editModal .modal-footer .btn {
+    padding: 11px 24px;
+    font-size: 13px;
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+#editModal .modal-footer .btn-primary {
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-light) 100%);
+    color: white;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
+}
+
+#editModal .modal-footer .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(37, 99, 235, 0.3);
+}
+
+#editModal .modal-footer .btn-primary:active {
+    transform: translateY(0);
+}
+
+#editModal .modal-footer .btn-secondary {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+    border: 1.5px solid var(--border-color);
+}
+
+#editModal .modal-footer .btn-secondary:hover {
+    background: #f3f4f6;
+    border-color: var(--text-secondary);
+    transform: translateY(-2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+#editModal .modal-footer .btn-secondary:active {
+    transform: translateY(0);
 }
 
  
