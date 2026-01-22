@@ -4,8 +4,8 @@
   "description": "小红书Cookie池管理系统",
   "main": "index.js",
   "scripts": {
-    "start": "node src/index.js",
-    "dev": "nodemon src/index.js",
+    "start": "node index.js",
+    "dev": "nodemon index.js",
     "test": "jest",
     "migrate": "node migrations/run.js"
   },

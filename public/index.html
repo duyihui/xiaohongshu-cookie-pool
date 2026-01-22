@@ -379,6 +379,47 @@
         </div>
     </div>
 
+    <!-- 模态框 - 编辑Cookie -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>编辑Cookie</h3>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Cookie ID</label>
+                    <input type="text" id="editId" readonly class="info-input">
+                </div>
+                <div class="form-group">
+                    <label>IP地址</label>
+                    <input type="text" id="editIp" placeholder="192.168.1.1" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>Cookie值</label>
+                    <textarea id="editCookie" placeholder="sessionid=xxx; path=/;" class="form-textarea" rows="4"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>有效期至</label>
+                    <input type="datetime-local" id="editValidUntil" class="form-control">
+                </div>
+                <div class="form-group">
+                    <label>状态</label>
+                    <select id="editStatus" class="form-control">
+                        <option value="0">可用</option>
+                        <option value="1">使用中</option>
+                        <option value="2">失效</option>
+                        <option value="3">黑名单</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="editCancelBtn">取消</button>
+                <button class="btn btn-primary" id="editSaveBtn">保存</button>
+            </div>
+        </div>
+    </div>
+
     <!-- 模态框 - 确认操作 -->
     <div id="confirmModal" class="modal">
         <div class="modal-content modal-sm">

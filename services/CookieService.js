@@ -302,25 +302,65 @@ class CookieService {
     }
   }
 
-  /**
-   * 添加到黑名单
-   */
-  static async addToBlacklist(id, reason = '') {
-    try {
-      const cookie = await CookieModel.findById(id);
-      if (!cookie) {
-        throw new Error('Cookie记录不存在');
-      }
+   /**
+    * 添加到黑名单
+    */
+   static async addToBlacklist(id, reason = '') {
+     try {
+       const cookie = await CookieModel.findById(id);
+       if (!cookie) {
+         throw new Error('Cookie记录不存在');
+       }
 
-      await CookieModel.addToBlacklist(id, reason);
-      logger.info(`添加黑名单: ${cookie.ip} - ${reason}`);
+       await CookieModel.addToBlacklist(id, reason);
+       logger.info(`添加黑名单: ${cookie.ip} - ${reason}`);
 
-      return { id, ip: cookie.ip, message: '已添加到黑名单' };
-    } catch (error) {
-      logger.error(`添加黑名单失败: ${error.message}`);
-      throw error;
-    }
-  }
+       return { id, ip: cookie.ip, message: '已添加到黑名单' };
+     } catch (error) {
+       logger.error(`添加黑名单失败: ${error.message}`);
+       throw error;
+     }
+   }
+
+   /**
+    * 编辑Cookie
+    */
+   static async updateCookie(id, updates) {
+     try {
+       const cookie = await CookieModel.findById(id);
+       if (!cookie) {
+         throw new Error('Cookie记录不存在');
+       }
+
+       const updatedCookie = await CookieModel.update(id, updates);
+       logger.info(`编辑Cookie: ID=${id}, IP=${updates.ip || cookie.ip}`);
+
+       return updatedCookie;
+     } catch (error) {
+       logger.error(`编辑Cookie失败: ${error.message}`);
+       throw error;
+     }
+   }
+
+   /**
+    * 删除Cookie
+    */
+   static async deleteCookie(id) {
+     try {
+       const cookie = await CookieModel.findById(id);
+       if (!cookie) {
+         throw new Error('Cookie记录不存在');
+       }
+
+       await CookieModel.delete(id);
+       logger.info(`删除Cookie: ID=${id}, IP=${cookie.ip}`);
+
+       return { id, ip: cookie.ip, message: '已删除' };
+     } catch (error) {
+       logger.error(`删除Cookie失败: ${error.message}`);
+       throw error;
+     }
+   }
 }
 
 module.exports = CookieService;

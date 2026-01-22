@@ -271,23 +271,88 @@ class CookieModel {
     }
   }
 
-  /**
-   * 添加到黑名单
-   */
-  static async addToBlacklist(id, reason = '') {
-    try {
-      const query = `
-        UPDATE cookie_pool
-        SET status = 3, error_msg = ?
-        WHERE id = ?
-      `;
-      const [result] = await pool.execute(query, [reason, id]);
-      return result;
-    } catch (error) {
-      logger.error(`添加黑名单失败: ${error.message}`);
-      throw error;
-    }
-  }
+   /**
+    * 添加到黑名单
+    */
+   static async addToBlacklist(id, reason = '') {
+     try {
+       const query = `
+         UPDATE cookie_pool
+         SET status = 3, error_msg = ?
+         WHERE id = ?
+       `;
+       const [result] = await pool.execute(query, [reason, id]);
+       return result;
+     } catch (error) {
+       logger.error(`添加黑名单失败: ${error.message}`);
+       throw error;
+     }
+   }
+
+   /**
+    * 更新Cookie
+    */
+   static async update(id, updates) {
+     try {
+       const fields = [];
+       const values = [];
+
+       if (updates.ip !== undefined) {
+         fields.push('ip = ?');
+         values.push(updates.ip);
+       }
+       if (updates.cookie !== undefined) {
+         fields.push('cookie = ?');
+         values.push(updates.cookie);
+       }
+       if (updates.validUntil !== undefined) {
+         fields.push('valid_until = ?');
+         values.push(updates.validUntil);
+       }
+       if (updates.status !== undefined) {
+         fields.push('status = ?');
+         values.push(updates.status);
+       }
+
+       if (fields.length === 0) {
+         return await this.findById(id);
+       }
+
+       fields.push('updated_at = NOW()');
+       values.push(id);
+
+       const query = `
+         UPDATE cookie_pool
+         SET ${fields.join(', ')}
+         WHERE id = ?
+       `;
+
+       const [result] = await pool.execute(query, values);
+       
+       if (result.affectedRows === 0) {
+         return null;
+       }
+
+       return await this.findById(id);
+     } catch (error) {
+       logger.error(`更新Cookie失败: ${error.message}`);
+       throw error;
+     }
+   }
+
+   /**
+    * 删除Cookie
+    */
+   static async delete(id) {
+     try {
+       const query = 'DELETE FROM cookie_pool WHERE id = ?';
+       const [result] = await pool.execute(query, [id]);
+       return result;
+     } catch (error) {
+       logger.error(`删除Cookie失败: ${error.message}`);
+       throw error;
+     }
+   }
 }
 
 module.exports = CookieModel;

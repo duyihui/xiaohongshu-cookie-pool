@@ -46,15 +46,35 @@ class ApiClient {
         return this.request(url, { method: 'GET' });
     }
 
-    /**
-     * POST请求
-     */
-    post(endpoint, body = {}) {
-        return this.request(endpoint, {
-            method: 'POST',
-            body: JSON.stringify(body),
-        });
-    }
+     /**
+      * POST请求
+      */
+     post(endpoint, body = {}) {
+         return this.request(endpoint, {
+             method: 'POST',
+             body: JSON.stringify(body),
+         });
+     }
+
+     /**
+      * PUT请求
+      */
+     put(endpoint, body = {}) {
+         return this.request(endpoint, {
+             method: 'PUT',
+             body: JSON.stringify(body),
+         });
+     }
+
+     /**
+      * DELETE请求
+      */
+     delete(endpoint, body = {}) {
+         return this.request(endpoint, {
+             method: 'DELETE',
+             body: JSON.stringify(body),
+         });
+     }
 
     /**
      * 获取统计信息
@@ -124,19 +144,33 @@ class ApiClient {
         return this.post(`/cookies/${id}/blacklist`, { reason });
     }
 
-    /**
-     * 批量添加黑名单
-     */
-    batchBlacklistCookies(ids, reason = '') {
-        return this.post('/cookies/blacklist/batch', { ids, reason });
-    }
+     /**
+      * 批量添加黑名单
+      */
+     batchBlacklistCookies(ids, reason = '') {
+         return this.post('/cookies/blacklist/batch', { ids, reason });
+     }
 
-    /**
-     * 检查服务器健康状态
-     */
-    healthCheck() {
-        return this.request('/health', { method: 'GET' });
-    }
+     /**
+      * 更新Cookie
+      */
+     updateCookie(id, updateData) {
+         return this.put(`/cookies/${id}`, updateData);
+     }
+
+     /**
+      * 删除Cookie
+      */
+     deleteCookie(id) {
+         return this.delete(`/cookies/${id}`);
+     }
+
+     /**
+      * 检查服务器健康状态
+      */
+     healthCheck() {
+         return this.request('/health', { method: 'GET' });
+     }
 }
 
 // 创建全局API客户端实例

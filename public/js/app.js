@@ -98,10 +98,64 @@ class CookieAdminApp {
                 e.target.closest('.modal').classList.remove('show');
             });
         });
-        document.getElementById('cancelBtn').addEventListener('click', () => {
-            document.getElementById('confirmModal').classList.remove('show');
-        });
-    }
+         document.getElementById('cancelBtn').addEventListener('click', () => {
+             document.getElementById('confirmModal').classList.remove('show');
+         });
+
+         // 编辑模态框事件处理
+         const editModal = document.getElementById('editModal');
+         const editCloseBtn = editModal.querySelector('.close-btn');
+         const editCancelBtn = document.getElementById('editCancelBtn');
+         const editSaveBtn = document.getElementById('editSaveBtn');
+
+         editCloseBtn.addEventListener('click', () => {
+             this.closeEditModal();
+         });
+
+         editCancelBtn.addEventListener('click', () => {
+             this.closeEditModal();
+         });
+
+         editSaveBtn.addEventListener('click', () => {
+             this.saveCookie();
+         });
+
+          // 点击模态框外部区域关闭 (可选)
+          editModal.addEventListener('click', (e) => {
+              if (e.target === editModal) {
+                  this.closeEditModal();
+              }
+          });
+
+          // 表格操作按钮事件委托
+          document.addEventListener('click', (e) => {
+              const button = e.target.closest('[data-action]');
+              if (!button) return;
+
+              const action = button.getAttribute('data-action');
+              const id = button.getAttribute('data-id');
+
+              if (action && id) {
+                  switch (action) {
+                      case 'edit':
+                          this.editCookie(id);
+                          break;
+                      case 'validate':
+                          this.validateSingle(id);
+                          break;
+                      case 'release':
+                          this.releaseSingle(id);
+                          break;
+                      case 'blacklist':
+                          this.blacklistSingle(id);
+                          break;
+                      case 'delete':
+                          this.deleteSingle(id);
+                          break;
+                  }
+              }
+          });
+      }
 
     /**
      * 标签页切换
@@ -316,15 +370,15 @@ class CookieAdminApp {
     renderCookieTable(cookies) {
         const tbody = document.getElementById('cookieTable');
         if (cookies.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center">暂无数据</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center">暂无数据</td></tr>';
             return;
         }
 
         const statusMap = {
-            0: { text: '可用', class: 'status-0' },
-            1: { text: '使用中', class: 'status-1' },
-            2: { text: '失效', class: 'status-2' },
-            3: { text: '黑名单', class: 'status-3' },
+            0: { text: '可用', class: 'status-available' },
+            1: { text: '使用中', class: 'status-using' },
+            2: { text: '失效', class: 'status-invalid' },
+            3: { text: '黑名单', class: 'status-blacklist' },
         };
 
         tbody.innerHTML = cookies.map(cookie => `
@@ -341,15 +395,21 @@ class CookieAdminApp {
                 <td>${this.formatTime(cookie.last_used_time)}</td>
                 <td>${this.formatTime(cookie.last_check_time)}</td>
                 <td>
-                    <div class="action-cell">
-                        <button class="icon-btn" title="查看详情" onclick="app.showDetail(${cookie.id})">
-                            <i class="fas fa-eye"></i>
+                    <div class="action-buttons">
+                        <button class="btn btn-action btn-edit" title="编辑" data-action="edit" data-id="${cookie.id}">
+                            <i class="fas fa-edit"></i>
                         </button>
-                        <button class="icon-btn" title="验证" onclick="app.validateSingle(${cookie.id})">
+                        <button class="btn btn-action btn-validate" title="验证" data-action="validate" data-id="${cookie.id}">
                             <i class="fas fa-check"></i>
                         </button>
-                        <button class="icon-btn" title="黑名单" onclick="app.blacklistSingle(${cookie.id})">
+                        <button class="btn btn-action btn-release" title="释放" data-action="release" data-id="${cookie.id}">
+                            <i class="fas fa-unlock"></i>
+                        </button>
+                        <button class="btn btn-action btn-blacklist" title="黑名单" data-action="blacklist" data-id="${cookie.id}">
                             <i class="fas fa-ban"></i>
+                        </button>
+                        <button class="btn btn-action btn-delete" title="删除" data-action="delete" data-id="${cookie.id}">
+                            <i class="fas fa-trash"></i>
                         </button>
                     </div>
                 </td>
@@ -428,24 +488,148 @@ class CookieAdminApp {
     /**
      * 添加单个Cookie到黑名单
      */
-    blacklistSingle(id) {
-        this.showConfirm('确认操作', '确定要添加到黑名单吗?', async () => {
-            try {
-                const data = await api.blacklistCookie(id, '手动添加');
-                if (data.code === 200) {
-                    this.showNotification('已添加到黑名单', 'success');
-                    this.loadCookies();
-                }
-            } catch (error) {
-                this.showNotification('操作失败', 'error');
-                console.error(error);
-            }
-        });
-    }
+     blacklistSingle(id) {
+         this.showConfirm('确认操作', '确定要添加到黑名单吗?', async () => {
+             try {
+                 const data = await api.blacklistCookie(id, '手动添加');
+                 if (data.code === 200) {
+                     this.showNotification('已添加到黑名单', 'success');
+                     this.loadCookies();
+                 }
+             } catch (error) {
+                 this.showNotification('操作失败', 'error');
+                 console.error(error);
+             }
+         });
+     }
 
-    /**
-     * 切换导入方式
-     */
+     /**
+      * 编辑Cookie - 打开编辑模态框
+      */
+     async editCookie(id) {
+         try {
+             const data = await api.getCookieDetail(id);
+             if (data.code === 200) {
+                 const cookie = data.data;
+                 // 填充表单字段
+                 document.getElementById('editId').value = cookie.id;
+                 document.getElementById('editIp').value = cookie.ip;
+                 document.getElementById('editCookie').value = cookie.cookie;
+                 
+                 // 格式化时间为datetime-local格式 (YYYY-MM-DDTHH:mm)
+                 if (cookie.valid_until) {
+                     const date = new Date(cookie.valid_until);
+                     const localDatetime = date.toISOString().slice(0, 16);
+                     document.getElementById('editValidUntil').value = localDatetime;
+                 }
+                 
+                 document.getElementById('editStatus').value = cookie.status;
+                 
+                 // 显示模态框
+                 const modal = document.getElementById('editModal');
+                 modal.style.display = 'flex';
+                 this.currentEditingId = id;
+             }
+         } catch (error) {
+             this.showNotification('获取Cookie详情失败', 'error');
+             console.error(error);
+         }
+     }
+
+     /**
+      * 保存编辑的Cookie
+      */
+     async saveCookie() {
+         const id = document.getElementById('editId').value;
+         const ip = document.getElementById('editIp').value;
+         const cookie = document.getElementById('editCookie').value;
+         const validUntil = document.getElementById('editValidUntil').value;
+         const status = document.getElementById('editStatus').value;
+
+         // 验证必填字段
+         if (!ip || !cookie) {
+             this.showNotification('请填写IP地址和Cookie值', 'error');
+             return;
+         }
+
+         try {
+             // 转换datetime-local为ISO字符串
+             let validUntilTimestamp = null;
+             if (validUntil) {
+                 validUntilTimestamp = new Date(validUntil).toISOString();
+             }
+
+             const updateData = {
+                 ip,
+                 cookie,
+                 valid_until: validUntilTimestamp,
+                 status: parseInt(status)
+             };
+
+             const data = await api.updateCookie(id, updateData);
+             if (data.code === 200) {
+                 this.showNotification('Cookie已保存', 'success');
+                 this.closeEditModal();
+                 this.loadCookies();
+             } else {
+                 this.showNotification(data.message || '保存失败', 'error');
+             }
+         } catch (error) {
+             this.showNotification('保存Cookie失败', 'error');
+             console.error(error);
+         }
+     }
+
+     /**
+      * 删除单个Cookie
+      */
+     deleteSingle(id) {
+         this.showConfirm('确认操作', '确定要删除这个Cookie吗?', async () => {
+             try {
+                 const data = await api.deleteCookie(id);
+                 if (data.code === 200) {
+                     this.showNotification('Cookie已删除', 'success');
+                     this.loadCookies();
+                 } else {
+                     this.showNotification(data.message || '删除失败', 'error');
+                 }
+             } catch (error) {
+                 this.showNotification('删除Cookie失败', 'error');
+                 console.error(error);
+             }
+         });
+     }
+
+     /**
+      * 释放单个Cookie
+      */
+     async releaseSingle(id) {
+         try {
+             const data = await api.releaseCookie(id);
+             if (data.code === 200) {
+                 this.showNotification('Cookie已释放', 'success');
+                 this.loadCookies();
+             } else {
+                 this.showNotification(data.message || '释放失败', 'error');
+             }
+         } catch (error) {
+             this.showNotification('释放Cookie失败', 'error');
+             console.error(error);
+         }
+     }
+
+     /**
+      * 关闭编辑模态框
+      */
+     closeEditModal() {
+         const modal = document.getElementById('editModal');
+         modal.style.display = 'none';
+         this.currentEditingId = null;
+     }
+
+     /**
+      * 切换导入方式
+      */
     switchImportMethod(e) {
         const method = e.currentTarget.getAttribute('data-method');
         document.querySelectorAll('.method-tab').forEach(tab => {
@@ -889,10 +1073,12 @@ class CookieAdminApp {
 }
 
 // 应用启动 - 等待DOM完全加载
+let app; // 声明为全局变量
+
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
-        const app = new CookieAdminApp();
+        app = new CookieAdminApp();
     });
 } else {
-    const app = new CookieAdminApp();
+    app = new CookieAdminApp();
 }

@@ -254,39 +254,145 @@ class CookieController {
     }
   }
 
-  /**
-   * 添加到黑名单
-   * POST /api/cookies/:id/blacklist
-   */
-  static async addToBlacklist(req, res) {
-    try {
-      const { id } = req.params;
-      const { reason } = req.body;
+   /**
+    * 添加到黑名单
+    * POST /api/cookies/:id/blacklist
+    */
+   static async addToBlacklist(req, res) {
+     try {
+       const { id } = req.params;
+       const { reason } = req.body;
 
-      if (!id) {
-        return res.status(400).json({
-          code: 400,
-          message: 'Cookie ID不能为空',
+       if (!id) {
+         return res.status(400).json({
+           code: 400,
+           message: 'Cookie ID不能为空',
+           data: null
+         });
+       }
+
+       const result = await CookieService.addToBlacklist(parseInt(id), reason || '');
+
+       res.json({
+         code: 200,
+         message: '操作成功',
+         data: result
+       });
+     } catch (error) {
+       logger.error(`添加黑名单错误: ${error.message}`);
+       res.status(500).json({
+         code: 500,
+         message: error.message,
+         data: null
+       });
+     }
+   }
+
+   /**
+    * 编辑Cookie
+    * PUT /api/cookies/:id
+    */
+   static async updateCookie(req, res) {
+     try {
+       const { id } = req.params;
+       const { ip, cookie, validUntil, status } = req.body;
+
+       if (!id) {
+         return res.status(400).json({
+           code: 400,
+           message: 'Cookie ID不能为空',
+           data: null
+         });
+       }
+
+       // 验证必填字段
+       if (!cookie || !ip) {
+         return res.status(400).json({
+           code: 400,
+           message: 'Cookie和IP不能为空',
+           data: null
+         });
+       }
+
+       // 验证状态值是否有效
+       if (status !== undefined && ![0, 1, 2, 3].includes(parseInt(status))) {
+         return res.status(400).json({
+           code: 400,
+           message: '状态值无效（0:可用, 1:使用中, 2:失效, 3:黑名单）',
+           data: null
+         });
+       }
+
+       const result = await CookieService.updateCookie(parseInt(id), {
+         ip,
+         cookie,
+         validUntil,
+         status: status !== undefined ? parseInt(status) : undefined
+       });
+
+       if (!result) {
+         return res.status(404).json({
+           code: 404,
+           message: 'Cookie不存在',
+           data: null
+         });
+       }
+
+       res.json({
+         code: 200,
+         message: '编辑成功',
+         data: result
+       });
+     } catch (error) {
+       logger.error(`编辑Cookie错误: ${error.message}`);
+       res.status(500).json({
+         code: 500,
+         message: error.message,
+         data: null
+       });
+     }
+   }
+
+   /**
+    * 删除Cookie
+    * DELETE /api/cookies/:id
+    */
+   static async deleteCookie(req, res) {
+     try {
+       const { id } = req.params;
+
+       if (!id) {
+         return res.status(400).json({
+           code: 400,
+           message: 'Cookie ID不能为空',
+           data: null
+         });
+       }
+
+       const result = await CookieService.deleteCookie(parseInt(id));
+
+       if (!result) {
+         return res.status(404).json({
+           code: 404,
+           message: 'Cookie不存在',
+           data: null
+         });
+       }
+
+       res.json({
+         code: 200,
+         message: '删除成功',
+         data: result
+       });
+      } catch (error) {
+        logger.error(`删除Cookie错误: ${error.message}`);
+        res.status(500).json({
+          code: 500,
+          message: error.message,
           data: null
         });
       }
-
-      const result = await CookieService.addToBlacklist(parseInt(id), reason || '');
-
-      res.json({
-        code: 200,
-        message: '操作成功',
-        data: result
-      });
-    } catch (error) {
-      logger.error(`添加黑名单错误: ${error.message}`);
-      res.status(500).json({
-        code: 500,
-        message: error.message,
-        data: null
-      });
     }
-  }
 }
 
 module.exports = CookieController;

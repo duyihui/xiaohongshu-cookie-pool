@@ -10,7 +10,10 @@ router.post('/validate/batch', CookieController.batchValidateCookies);  // è¿™ä¸
 router.post('/:id/validate', CookieController.validateCookie);
 router.post('/:id/release', CookieController.releaseCookie);
 router.post('/:id/blacklist', CookieController.addToBlacklist);
+router.put('/:id', CookieController.updateCookie);
+router.delete('/:id', CookieController.deleteCookie);
 router.get('/', CookieController.getCookieList);
 router.get('/:id', CookieController.getCookieDetail);
 
 module.exports = router;
+
