@@ -285,7 +285,69 @@ GET /api/statistics
 
 ---
 
-### 9. 添加到黑名单
+### 9. 编辑Cookie
+
+**请求**
+```
+PUT /api/cookies/:id
+Content-Type: application/json
+```
+
+**请求体**
+```json
+{
+  "ip": "10.0.0.1",
+  "cookie": "sessionid=new_value; path=/; secure",
+  "status": 0,
+  "valid_until": "2024-02-20T10:00:00Z"
+}
+```
+
+**参数说明**
+- `ip`: 代理IP地址（可选）
+- `cookie`: Cookie内容（可选）
+- `status`: Cookie状态（可选，0-可用, 1-使用中, 2-失效, 3-黑名单）
+- `valid_until`: Cookie有效期至（可选）
+
+**响应**
+```json
+{
+  "code": 200,
+  "message": "编辑成功",
+  "data": {
+    "id": 1,
+    "ip": "10.0.0.1",
+    "cookie": "sessionid=new_value...",
+    "status": 0,
+    "updated_at": "2024-01-20T12:00:00Z"
+  }
+}
+```
+
+---
+
+### 10. 删除Cookie
+
+**请求**
+```
+DELETE /api/cookies/:id
+```
+
+**响应**
+```json
+{
+  "code": 200,
+  "message": "删除成功",
+  "data": {
+    "id": 1,
+    "message": "Cookie已删除"
+  }
+}
+```
+
+---
+
+### 11. 添加到黑名单
 
 **请求**
 ```
