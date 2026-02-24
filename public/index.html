@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,8 +9,11 @@
 </head>
 <body>
     <div class="container">
+        <!-- 侧边栏遮罩 -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
         <!-- 侧边栏 -->
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar">
             <div class="logo">
                 <i class="fas fa-cookie"></i>
                 <span>Cookie池管理</span>
@@ -44,11 +47,24 @@
             <!-- 顶部栏 -->
             <header class="top-bar">
                 <div class="title-section">
+                    <button class="btn btn-icon sidebar-toggle" id="sidebarToggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
                     <h1>小红书Cookie池管理系统</h1>
                 </div>
                 <div class="header-actions">
+                    <div class="auto-refresh-toggle" id="autoRefreshToggle" title="自动刷新 (30s)">
+                        <i class="fas fa-sync-alt"></i>
+                        <span class="auto-refresh-dot active"></span>
+                    </div>
                     <button class="btn btn-refresh" id="refreshBtn">
                         <i class="fas fa-sync-alt"></i> 刷新
+                    </button>
+                    <button class="btn btn-icon theme-toggle" id="themeToggle" title="切换深色模式">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                    <button class="btn btn-icon" id="shortcutHelpBtn" title="键盘快捷键">
+                        <i class="fas fa-keyboard"></i>
                     </button>
                     <div class="user-info">
                         <span id="serverStatus" class="status-indicator">●</span>
@@ -62,9 +78,9 @@
                 <!-- Dashboard Tab -->
                 <section id="dashboard" class="tab-content active">
                     <h2 class="section-title">仪表板</h2>
-                    
+
                     <!-- 统计卡片 -->
-                    <div class="stats-grid">
+                    <div class="stats-grid" id="statsGrid">
                         <div class="stat-card">
                             <div class="stat-icon" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                                 <i class="fas fa-cookie-bite"></i>
@@ -142,10 +158,10 @@
                 <!-- Cookie列表 Tab -->
                 <section id="cookies" class="tab-content">
                     <h2 class="section-title">Cookie列表</h2>
-                    
+
                     <div class="filter-section">
                         <div class="filter-group">
-                            <input type="text" id="searchIP" placeholder="搜索IP..." class="filter-input">
+                            <input type="text" id="searchIP" placeholder="搜索IP... (按 / 聚焦)" class="filter-input">
                             <select id="statusFilter" class="filter-input">
                                 <option value="">所有状态</option>
                                 <option value="0">可用</option>
@@ -173,10 +189,11 @@
                                     <th>
                                         <input type="checkbox" id="selectAll" class="table-checkbox">
                                     </th>
-                                    <th>ID</th>
+                                    <th class="sortable" data-sort="id">ID <i class="fas fa-sort"></i></th>
                                     <th>IP地址</th>
-                                    <th>状态</th>
-                                    <th>使用次数</th>
+                                    <th>Cookie预览</th>
+                                    <th class="sortable" data-sort="status">状态 <i class="fas fa-sort"></i></th>
+                                    <th class="sortable" data-sort="use_count">使用次数 <i class="fas fa-sort"></i></th>
                                     <th>最后使用</th>
                                     <th>最后检测</th>
                                     <th>操作</th>
@@ -184,7 +201,7 @@
                             </thead>
                             <tbody id="cookieTable">
                                 <tr>
-                                    <td colspan="8" class="text-center">加载中...</td>
+                                    <td colspan="9" class="text-center">加载中...</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -201,7 +218,7 @@
                 <!-- 导入Cookie Tab -->
                 <section id="import" class="tab-content">
                     <h2 class="section-title">导入Cookie</h2>
-                    
+
                     <div class="import-section">
                         <div class="import-input-area">
                             <h3>输入方式</h3>
@@ -217,8 +234,8 @@
                                     <textarea id="cookieInput" placeholder="192.168.1.1 sessionid=xxx; path=/; secure
 192.168.1.2 sessionid=yyy; path=/; secure 2024-02-20T10:00:00Z" rows="10"></textarea>
                                     <small>支持的格式：
-                                        <br>• IP cookie
-                                        <br>• IP cookie validUntil
+                                        <br>IP cookie
+                                        <br>IP cookie validUntil
                                     </small>
                                 </div>
                             </div>
@@ -278,7 +295,7 @@
                 <!-- 批量操作 Tab -->
                 <section id="batch" class="tab-content">
                     <h2 class="section-title">批量操作</h2>
-                    
+
                     <div class="batch-section">
                         <div class="batch-input">
                             <h3>输入Cookie ID</h3>
@@ -321,7 +338,7 @@
                 <!-- 设置 Tab -->
                 <section id="settings" class="tab-content">
                     <h2 class="section-title">系统设置</h2>
-                    
+
                     <div class="settings-section">
                         <h3>服务器信息</h3>
                         <div class="info-group">
@@ -330,11 +347,31 @@
                         </div>
                         <div class="info-group">
                             <label>系统版本</label>
-                            <input type="text" value="1.1.0" class="info-input" readonly>
+                            <input type="text" value="1.2.0" class="info-input" readonly>
                         </div>
                         <div class="info-group">
                             <label>服务器状态</label>
                             <input type="text" id="serverInfo" class="info-input" readonly>
+                        </div>
+                    </div>
+
+                    <div class="settings-section">
+                        <h3>外观设置</h3>
+                        <div class="info-group">
+                            <label>主题</label>
+                            <select id="themeSelect" class="form-control">
+                                <option value="light">浅色模式</option>
+                                <option value="dark">深色模式</option>
+                            </select>
+                        </div>
+                        <div class="info-group">
+                            <label>自动刷新间隔</label>
+                            <select id="refreshInterval" class="form-control">
+                                <option value="0">关闭</option>
+                                <option value="15000">15秒</option>
+                                <option value="30000" selected>30秒</option>
+                                <option value="60000">60秒</option>
+                            </select>
                         </div>
                     </div>
 
@@ -361,6 +398,17 @@
                             </button>
                         </div>
                     </div>
+
+                    <div class="settings-section">
+                        <h3>键盘快捷键</h3>
+                        <div class="shortcut-list">
+                            <div class="shortcut-item"><kbd>R</kbd> <span>刷新当前页面数据</span></div>
+                            <div class="shortcut-item"><kbd>/</kbd> <span>聚焦搜索框</span></div>
+                            <div class="shortcut-item"><kbd>Esc</kbd> <span>关闭模态框/侧栏</span></div>
+                            <div class="shortcut-item"><kbd>1</kbd>-<kbd>5</kbd> <span>切换到对应标签页</span></div>
+                            <div class="shortcut-item"><kbd>D</kbd> <span>切换深色模式</span></div>
+                        </div>
+                    </div>
                 </section>
             </div>
         </main>
@@ -374,7 +422,6 @@
                 <button class="close-btn">&times;</button>
             </div>
             <div class="modal-body" id="modalBody">
-                <!-- 详情内容将动态加载 -->
             </div>
         </div>
     </div>
@@ -433,6 +480,25 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" id="cancelBtn">取消</button>
                 <button class="btn btn-danger" id="confirmBtn">确认</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 模态框 - 快捷键帮助 -->
+    <div id="shortcutModal" class="modal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>键盘快捷键</h3>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="shortcut-list">
+                    <div class="shortcut-item"><kbd>R</kbd> <span>刷新当前页面数据</span></div>
+                    <div class="shortcut-item"><kbd>/</kbd> <span>聚焦搜索框</span></div>
+                    <div class="shortcut-item"><kbd>Esc</kbd> <span>关闭模态框/侧栏</span></div>
+                    <div class="shortcut-item"><kbd>1</kbd>-<kbd>5</kbd> <span>切换到对应标签页</span></div>
+                    <div class="shortcut-item"><kbd>D</kbd> <span>切换深色模式</span></div>
+                </div>
             </div>
         </div>
     </div>
