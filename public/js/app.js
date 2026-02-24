@@ -8,6 +8,12 @@ class CookieAdminApp {
         this.pageSize = 10;
         this.charts = {};
         this.selectedCookies = new Set();
+        this.autoRefreshEnabled = true;
+        this.autoRefreshInterval = 30000;
+        this.autoRefreshTimer = null;
+        this.sortField = null;
+        this.sortDirection = 'asc';
+        this.cachedCookies = [];
         this.init();
     }
 
@@ -15,26 +21,130 @@ class CookieAdminApp {
      * 初始化应用
      */
     async init() {
+        this.loadTheme();
         this.setupEventListeners();
+        this.setupKeyboardShortcuts();
         await this.loadDashboard();
         await this.checkServerStatus();
         this.setupAutoRefresh();
     }
 
-    /**
-     * 设置事件监听器
-     */
+    /* ==========================================
+     * THEME
+     * ========================================== */
+
+    loadTheme() {
+        const saved = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', saved);
+        this.updateThemeIcon(saved);
+        const sel = document.getElementById('themeSelect');
+        if (sel) sel.value = saved;
+    }
+
+    toggleTheme() {
+        const current = document.documentElement.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        document.documentElement.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+        this.updateThemeIcon(next);
+        const sel = document.getElementById('themeSelect');
+        if (sel) sel.value = next;
+        // Re-render charts with correct theme colors
+        if (document.getElementById('dashboard').classList.contains('active')) {
+            this.loadDashboard();
+        }
+    }
+
+    updateThemeIcon(theme) {
+        const btn = document.getElementById('themeToggle');
+        if (!btn) return;
+        const icon = btn.querySelector('i');
+        if (theme === 'dark') {
+            icon.className = 'fas fa-sun';
+        } else {
+            icon.className = 'fas fa-moon';
+        }
+    }
+
+    /* ==========================================
+     * SIDEBAR
+     * ========================================== */
+
+    toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('active');
+    }
+
+    closeSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        sidebar.classList.remove('open');
+        overlay.classList.remove('active');
+    }
+
+    /* ==========================================
+     * EVENT LISTENERS
+     * ========================================== */
+
     setupEventListeners() {
+        // Sidebar toggle
+        document.getElementById('sidebarToggle').addEventListener('click', () => this.toggleSidebar());
+        document.getElementById('sidebarOverlay').addEventListener('click', () => this.closeSidebar());
+
+        // Theme toggle
+        document.getElementById('themeToggle').addEventListener('click', () => this.toggleTheme());
+        const themeSelect = document.getElementById('themeSelect');
+        if (themeSelect) {
+            themeSelect.addEventListener('change', (e) => {
+                const theme = e.target.value;
+                document.documentElement.setAttribute('data-theme', theme);
+                localStorage.setItem('theme', theme);
+                this.updateThemeIcon(theme);
+                if (document.getElementById('dashboard').classList.contains('active')) {
+                    this.loadDashboard();
+                }
+            });
+        }
+
+        // Auto-refresh toggle
+        document.getElementById('autoRefreshToggle').addEventListener('click', () => this.toggleAutoRefresh());
+        const refreshIntervalSelect = document.getElementById('refreshInterval');
+        if (refreshIntervalSelect) {
+            refreshIntervalSelect.addEventListener('change', (e) => {
+                const val = parseInt(e.target.value);
+                if (val === 0) {
+                    this.autoRefreshEnabled = false;
+                    this.clearAutoRefresh();
+                    this.updateAutoRefreshUI();
+                } else {
+                    this.autoRefreshInterval = val;
+                    this.autoRefreshEnabled = true;
+                    this.setupAutoRefresh();
+                    this.updateAutoRefreshUI();
+                }
+            });
+        }
+
+        // Shortcut help
+        document.getElementById('shortcutHelpBtn').addEventListener('click', () => {
+            document.getElementById('shortcutModal').classList.add('show');
+        });
+
         // 标签页切换
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', (e) => this.switchTab(e));
         });
 
         // Dashboard
-        document.getElementById('refreshBtn').addEventListener('click', () => this.loadDashboard());
+        document.getElementById('refreshBtn').addEventListener('click', () => this.refreshCurrentTab());
 
         // Cookie列表
         document.getElementById('searchBtn').addEventListener('click', () => this.loadCookies());
+        document.getElementById('searchIP').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') this.loadCookies();
+        });
         document.getElementById('pageSize').addEventListener('change', () => {
             this.pageSize = parseInt(document.getElementById('pageSize').value);
             this.currentPage = 1;
@@ -51,6 +161,11 @@ class CookieAdminApp {
             this.loadCookies();
         });
         document.getElementById('selectAll').addEventListener('change', (e) => this.selectAllCookies(e));
+
+        // Sortable headers
+        document.querySelectorAll('.sortable').forEach(th => {
+            th.addEventListener('click', () => this.handleSort(th));
+        });
 
         // 导入Cookie
         document.querySelectorAll('.method-tab').forEach(tab => {
@@ -98,102 +213,276 @@ class CookieAdminApp {
                 e.target.closest('.modal').classList.remove('show');
             });
         });
-         document.getElementById('cancelBtn').addEventListener('click', () => {
-             document.getElementById('confirmModal').classList.remove('show');
-         });
+        document.getElementById('cancelBtn').addEventListener('click', () => {
+            document.getElementById('confirmModal').classList.remove('show');
+        });
 
-         // 编辑模态框事件处理
-         const editModal = document.getElementById('editModal');
-         const editCloseBtn = editModal.querySelector('.close-btn');
-         const editCancelBtn = document.getElementById('editCancelBtn');
-         const editSaveBtn = document.getElementById('editSaveBtn');
+        // 编辑模态框事件处理
+        const editModal = document.getElementById('editModal');
+        const editCancelBtn = document.getElementById('editCancelBtn');
+        const editSaveBtn = document.getElementById('editSaveBtn');
 
-         editCloseBtn.addEventListener('click', () => {
-             this.closeEditModal();
-         });
+        editCancelBtn.addEventListener('click', () => {
+            this.closeEditModal();
+        });
 
-         editCancelBtn.addEventListener('click', () => {
-             this.closeEditModal();
-         });
+        editSaveBtn.addEventListener('click', () => {
+            this.saveCookie();
+        });
 
-         editSaveBtn.addEventListener('click', () => {
-             this.saveCookie();
-         });
+        editModal.addEventListener('click', (e) => {
+            if (e.target === editModal) {
+                this.closeEditModal();
+            }
+        });
 
-          // 点击模态框外部区域关闭 (可选)
-          editModal.addEventListener('click', (e) => {
-              if (e.target === editModal) {
-                  this.closeEditModal();
-              }
-          });
+        // 表格操作按钮事件委托
+        document.addEventListener('click', (e) => {
+            const button = e.target.closest('[data-action]');
+            if (!button) return;
 
-          // 表格操作按钮事件委托
-          document.addEventListener('click', (e) => {
-              const button = e.target.closest('[data-action]');
-              if (!button) return;
+            const action = button.getAttribute('data-action');
+            const id = button.getAttribute('data-id');
 
-              const action = button.getAttribute('data-action');
-              const id = button.getAttribute('data-id');
+            if (action && id) {
+                switch (action) {
+                    case 'edit':
+                        this.editCookie(id);
+                        break;
+                    case 'validate':
+                        this.validateSingle(id);
+                        break;
+                    case 'release':
+                        this.releaseSingle(id);
+                        break;
+                    case 'blacklist':
+                        this.blacklistSingle(id);
+                        break;
+                    case 'delete':
+                        this.deleteSingle(id);
+                        break;
+                    case 'copy-cookie':
+                        this.copyCookieValue(id, e);
+                        break;
+                }
+            }
+        });
+    }
 
-              if (action && id) {
-                  switch (action) {
-                      case 'edit':
-                          this.editCookie(id);
-                          break;
-                      case 'validate':
-                          this.validateSingle(id);
-                          break;
-                      case 'release':
-                          this.releaseSingle(id);
-                          break;
-                      case 'blacklist':
-                          this.blacklistSingle(id);
-                          break;
-                      case 'delete':
-                          this.deleteSingle(id);
-                          break;
-                  }
-              }
-          });
-      }
+    /* ==========================================
+     * KEYBOARD SHORTCUTS
+     * ========================================== */
 
-    /**
-     * 标签页切换
-     */
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Skip if user is typing in an input/textarea
+            const tag = e.target.tagName.toLowerCase();
+            if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+                if (e.key === 'Escape') {
+                    e.target.blur();
+                }
+                return;
+            }
+
+            // Skip if modifier keys pressed
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+            switch (e.key.toLowerCase()) {
+                case 'r':
+                    e.preventDefault();
+                    this.refreshCurrentTab();
+                    break;
+                case '/':
+                    e.preventDefault();
+                    this.focusSearch();
+                    break;
+                case 'escape':
+                    this.closeAllModals();
+                    this.closeSidebar();
+                    break;
+                case 'd':
+                    e.preventDefault();
+                    this.toggleTheme();
+                    break;
+                case '1':
+                    this.switchTabByIndex(0);
+                    break;
+                case '2':
+                    this.switchTabByIndex(1);
+                    break;
+                case '3':
+                    this.switchTabByIndex(2);
+                    break;
+                case '4':
+                    this.switchTabByIndex(3);
+                    break;
+                case '5':
+                    this.switchTabByIndex(4);
+                    break;
+            }
+        });
+    }
+
+    focusSearch() {
+        const searchInput = document.getElementById('searchIP');
+        if (searchInput) {
+            // Switch to cookies tab first if not there
+            const cookiesTab = document.querySelector('[data-tab="cookies"]');
+            if (cookiesTab && !cookiesTab.classList.contains('active')) {
+                cookiesTab.click();
+            }
+            setTimeout(() => searchInput.focus(), 100);
+        }
+    }
+
+    switchTabByIndex(index) {
+        const tabs = document.querySelectorAll('.nav-item');
+        if (tabs[index]) {
+            tabs[index].click();
+        }
+    }
+
+    closeAllModals() {
+        document.querySelectorAll('.modal.show').forEach(modal => {
+            modal.classList.remove('show');
+        });
+        const editModal = document.getElementById('editModal');
+        if (editModal && editModal.style.display === 'flex') {
+            this.closeEditModal();
+        }
+    }
+
+    refreshCurrentTab() {
+        const activeTab = document.querySelector('.tab-content.active');
+        if (!activeTab) return;
+        const id = activeTab.id;
+        if (id === 'dashboard') {
+            this.loadDashboard();
+        } else if (id === 'cookies') {
+            this.loadCookies();
+        }
+        // Brief spin animation on refresh button
+        const btn = document.getElementById('refreshBtn');
+        const icon = btn.querySelector('i');
+        icon.classList.add('loading');
+        setTimeout(() => icon.classList.remove('loading'), 1000);
+    }
+
+    /* ==========================================
+     * AUTO REFRESH
+     * ========================================== */
+
+    setupAutoRefresh() {
+        this.clearAutoRefresh();
+        if (!this.autoRefreshEnabled || this.autoRefreshInterval <= 0) return;
+        this.autoRefreshTimer = setInterval(() => {
+            if (document.getElementById('dashboard').classList.contains('active')) {
+                this.loadDashboard();
+            }
+        }, this.autoRefreshInterval);
+        this.updateAutoRefreshUI();
+    }
+
+    clearAutoRefresh() {
+        if (this.autoRefreshTimer) {
+            clearInterval(this.autoRefreshTimer);
+            this.autoRefreshTimer = null;
+        }
+    }
+
+    toggleAutoRefresh() {
+        this.autoRefreshEnabled = !this.autoRefreshEnabled;
+        if (this.autoRefreshEnabled) {
+            this.setupAutoRefresh();
+        } else {
+            this.clearAutoRefresh();
+        }
+        this.updateAutoRefreshUI();
+    }
+
+    updateAutoRefreshUI() {
+        const toggle = document.getElementById('autoRefreshToggle');
+        const dot = toggle.querySelector('.auto-refresh-dot');
+        if (this.autoRefreshEnabled) {
+            dot.className = 'auto-refresh-dot active';
+            toggle.title = '自动刷新已开启 (点击关闭)';
+        } else {
+            dot.className = 'auto-refresh-dot paused';
+            toggle.title = '自动刷新已关闭 (点击开启)';
+        }
+    }
+
+    /* ==========================================
+     * TAB SWITCHING
+     * ========================================== */
+
     switchTab(e) {
         e.preventDefault();
         const tab = e.currentTarget.getAttribute('data-tab');
 
-        // 更新nav-item
         document.querySelectorAll('.nav-item').forEach(item => {
             item.classList.remove('active');
         });
         e.currentTarget.classList.add('active');
 
-        // 更新内容
         document.querySelectorAll('.tab-content').forEach(content => {
             content.classList.remove('active');
         });
         document.getElementById(tab).classList.add('active');
 
-        // 加载对应数据
         if (tab === 'dashboard') {
             this.loadDashboard();
         } else if (tab === 'cookies') {
             this.loadCookies();
         }
+
+        // Close sidebar on mobile
+        this.closeSidebar();
     }
 
-    /**
-     * 加载仪表板数据
-     */
+    /* ==========================================
+     * SKELETON LOADING
+     * ========================================== */
+
+    showStatsSkeleton() {
+        const grid = document.getElementById('statsGrid');
+        if (!grid) return;
+        grid.querySelectorAll('.stat-value').forEach(el => {
+            el.innerHTML = '<div class="skeleton skeleton-value"></div>';
+        });
+    }
+
+    showTableSkeleton() {
+        const tbody = document.getElementById('cookieTable');
+        if (!tbody) return;
+        let rows = '';
+        for (let i = 0; i < 5; i++) {
+            rows += `<tr>
+                <td><div class="skeleton" style="width:18px;height:18px;"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:30px;height:16px;"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:100px;height:16px;"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:150px;height:16px;"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:60px;height:16px;"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:50px;height:16px;"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:100px;height:16px;"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:100px;height:16px;"></div></td>
+                <td><div class="skeleton skeleton-cell" style="width:160px;height:16px;"></div></td>
+            </tr>`;
+        }
+        tbody.innerHTML = rows;
+    }
+
+    /* ==========================================
+     * DASHBOARD
+     * ========================================== */
+
     async loadDashboard() {
+        this.showStatsSkeleton();
         try {
             const data = await api.getStatistics();
             if (data && data.code === 200 && data.data) {
                 const stats = data.data;
-                
-                // 验证并转换数据类型
+
                 const totalCookies = parseInt(stats.total) || 0;
                 const availableCookies = parseInt(stats.available) || 0;
                 const usingCookies = parseInt(stats.using) || 0;
@@ -201,7 +490,6 @@ class CookieAdminApp {
                 const blacklistCookies = parseInt(stats.blacklist) || 0;
                 const avgUseCount = parseFloat(stats.avgUseCount) || 0;
 
-                // 更新DOM元素
                 const elements = {
                     'totalCookies': totalCookies,
                     'availableCookies': availableCookies,
@@ -215,12 +503,9 @@ class CookieAdminApp {
                     const element = document.getElementById(id);
                     if (element) {
                         element.textContent = value;
-                    } else {
-                        console.warn(`Element with id "${id}" not found`);
                     }
                 }
 
-                // 更新图表（传递转换后的数据）
                 this.updateCharts({
                     total: totalCookies,
                     available: availableCookies,
@@ -237,55 +522,40 @@ class CookieAdminApp {
         }
     }
 
-     /**
-      * 更新图表
-      */
-     updateCharts(stats) {
-         try {
-             // 检查Chart.js是否加载
-             if (typeof Chart === 'undefined') {
-                 console.error('Chart.js is not loaded');
-                 this.showNotification('图表库未加载，请刷新页面', 'error');
-                 return;
-             }
+    updateCharts(stats) {
+        try {
+            if (typeof Chart === 'undefined') {
+                console.error('Chart.js is not loaded');
+                return;
+            }
 
-             // 确保数据是数字类型
-             const data = {
-                 total: parseInt(stats.total) || 0,
-                 available: parseInt(stats.available) || 0,
-                 using: parseInt(stats.using) || 0,
-                 invalid: parseInt(stats.invalid) || 0,
-                 blacklist: parseInt(stats.blacklist) || 0,
-             };
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            const gridColor = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+            const textColor = isDark ? '#cbd5e1' : '#4b5563';
 
-             console.log('Updating charts with data:', data);
+            const data = {
+                total: parseInt(stats.total) || 0,
+                available: parseInt(stats.available) || 0,
+                using: parseInt(stats.using) || 0,
+                invalid: parseInt(stats.invalid) || 0,
+                blacklist: parseInt(stats.blacklist) || 0,
+            };
 
-             // 状态分布图
-             const statusCtx = document.getElementById('statusChart');
-             if (!statusCtx) {
-                 console.error('statusChart canvas element not found');
-                 this.showNotification('图表元素未找到，请刷新页面', 'error');
-                 return;
-             }
+            const statusCtx = document.getElementById('statusChart');
+            if (!statusCtx) return;
 
-             if (this.charts.statusChart) {
-                 this.charts.statusChart.destroy();
-             }
+            if (this.charts.statusChart) {
+                this.charts.statusChart.destroy();
+            }
 
-             console.log('Creating statusChart...');
-             this.charts.statusChart = new Chart(statusCtx.getContext('2d'), {
+            this.charts.statusChart = new Chart(statusCtx.getContext('2d'), {
                 type: 'doughnut',
                 data: {
                     labels: ['可用', '使用中', '失效', '黑名单'],
                     datasets: [{
                         data: [data.available, data.using, data.invalid, data.blacklist],
-                        backgroundColor: [
-                            '#52c41a',
-                            '#1890ff',
-                            '#f5222d',
-                            '#722ed1',
-                        ],
-                        borderColor: '#ffffff',
+                        backgroundColor: ['#10b981', '#3b82f6', '#ef4444', '#8b5cf6'],
+                        borderColor: isDark ? '#1e293b' : '#ffffff',
                         borderWidth: 2,
                     }],
                 },
@@ -295,67 +565,71 @@ class CookieAdminApp {
                     plugins: {
                         legend: {
                             position: 'bottom',
+                            labels: { color: textColor },
                         },
                     },
                 },
             });
 
-             // 使用频率图（简单直方图）
-             const usageCtx = document.getElementById('usageChart');
-             if (!usageCtx) {
-                 console.error('usageChart canvas element not found');
-                 this.showNotification('图表元素未找到，请刷新页面', 'error');
-                 return;
-             }
+            const usageCtx = document.getElementById('usageChart');
+            if (!usageCtx) return;
 
-             if (this.charts.usageChart) {
-                 this.charts.usageChart.destroy();
-             }
+            if (this.charts.usageChart) {
+                this.charts.usageChart.destroy();
+            }
 
-             console.log('Creating usageChart...');
-             this.charts.usageChart = new Chart(usageCtx.getContext('2d'), {
+            this.charts.usageChart = new Chart(usageCtx.getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels: ['总数', '可用', '使用中', '失效', '黑名单'],
                     datasets: [{
                         label: '数量',
                         data: [data.total, data.available, data.using, data.invalid, data.blacklist],
-                        backgroundColor: '#667eea',
-                        borderRadius: 4,
+                        backgroundColor: ['#6366f1', '#10b981', '#3b82f6', '#ef4444', '#8b5cf6'],
+                        borderRadius: 6,
                     }],
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: true,
                     plugins: {
-                        legend: {
-                            display: false,
-                        },
+                        legend: { display: false },
                     },
                     scales: {
                         y: {
                             beginAtZero: true,
+                            grid: { color: gridColor },
+                            ticks: { color: textColor },
+                        },
+                        x: {
+                            grid: { display: false },
+                            ticks: { color: textColor },
                         },
                     },
                 },
             });
         } catch (error) {
             console.error('Error updating charts:', error);
-            this.showNotification('图表加载失败，请刷新页面', 'error');
         }
     }
 
-    /**
-     * 加载Cookie列表
-     */
+    /* ==========================================
+     * COOKIE LIST
+     * ========================================== */
+
     async loadCookies() {
+        this.showTableSkeleton();
         try {
             const ip = document.getElementById('searchIP').value;
             const status = document.getElementById('statusFilter').value;
 
             const data = await api.getCookies(this.currentPage, this.pageSize, status, ip);
             if (data.code === 200) {
-                this.renderCookieTable(data.data.data);
+                this.cachedCookies = data.data.data;
+                if (this.sortField) {
+                    this.sortCookies();
+                }
+                this.renderCookieTable(this.cachedCookies);
                 this.updatePagination(data.data.pagination);
             }
         } catch (error) {
@@ -364,9 +638,46 @@ class CookieAdminApp {
         }
     }
 
-    /**
-     * 渲染Cookie表格
-     */
+    /* ==========================================
+     * TABLE SORTING
+     * ========================================== */
+
+    handleSort(th) {
+        const field = th.getAttribute('data-sort');
+        if (this.sortField === field) {
+            this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.sortField = field;
+            this.sortDirection = 'asc';
+        }
+        // Update UI
+        document.querySelectorAll('.sortable').forEach(h => {
+            h.classList.remove('sort-asc', 'sort-desc');
+        });
+        th.classList.add(this.sortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+
+        this.sortCookies();
+        this.renderCookieTable(this.cachedCookies);
+    }
+
+    sortCookies() {
+        if (!this.sortField || !this.cachedCookies.length) return;
+        const field = this.sortField;
+        const dir = this.sortDirection === 'asc' ? 1 : -1;
+        this.cachedCookies.sort((a, b) => {
+            const va = a[field] ?? 0;
+            const vb = b[field] ?? 0;
+            if (typeof va === 'number' && typeof vb === 'number') {
+                return (va - vb) * dir;
+            }
+            return String(va).localeCompare(String(vb)) * dir;
+        });
+    }
+
+    /* ==========================================
+     * RENDER TABLE
+     * ========================================== */
+
     renderCookieTable(cookies) {
         const tbody = document.getElementById('cookieTable');
         if (cookies.length === 0) {
@@ -381,11 +692,21 @@ class CookieAdminApp {
             3: { text: '黑名单', class: 'status-blacklist' },
         };
 
-        tbody.innerHTML = cookies.map(cookie => `
+        tbody.innerHTML = cookies.map(cookie => {
+            const cookiePreview = cookie.cookie
+                ? (cookie.cookie.length > 40 ? cookie.cookie.substring(0, 40) + '...' : cookie.cookie)
+                : '-';
+
+            return `
             <tr>
                 <td><input type="checkbox" class="table-checkbox" value="${cookie.id}"></td>
                 <td>${cookie.id}</td>
                 <td>${cookie.ip}</td>
+                <td>
+                    <span class="cookie-preview" data-action="copy-cookie" data-id="${cookie.id}" title="点击复制完整Cookie">
+                        ${this.escapeHtml(cookiePreview)}
+                    </span>
+                </td>
                 <td>
                     <span class="status-badge ${statusMap[cookie.status].class}">
                         ${statusMap[cookie.status].text}
@@ -413,40 +734,73 @@ class CookieAdminApp {
                         </button>
                     </div>
                 </td>
-            </tr>
-        `).join('');
+            </tr>`;
+        }).join('');
 
-        // 绑定复选框事件
         document.querySelectorAll('.table-checkbox').forEach(checkbox => {
             checkbox.addEventListener('change', () => this.updateSelectAll());
         });
     }
 
-    /**
-     * 更新分页
-     */
+    escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    /* ==========================================
+     * COPY COOKIE
+     * ========================================== */
+
+    async copyCookieValue(id, event) {
+        const cookie = this.cachedCookies.find(c => String(c.id) === String(id));
+        if (!cookie || !cookie.cookie) return;
+
+        try {
+            await navigator.clipboard.writeText(cookie.cookie);
+            // Visual feedback
+            const el = event.target.closest('.cookie-preview');
+            if (el) {
+                el.classList.add('copied');
+                setTimeout(() => el.classList.remove('copied'), 1000);
+            }
+            this.showTooltip(event, '已复制');
+        } catch (err) {
+            this.showNotification('复制失败', 'error');
+        }
+    }
+
+    showTooltip(event, text) {
+        const tip = document.createElement('div');
+        tip.className = 'copy-tooltip';
+        tip.textContent = text;
+        tip.style.left = event.clientX + 'px';
+        tip.style.top = (event.clientY - 30) + 'px';
+        document.body.appendChild(tip);
+        setTimeout(() => tip.remove(), 1000);
+    }
+
+    /* ==========================================
+     * PAGINATION
+     * ========================================== */
+
     updatePagination(pagination) {
         document.getElementById('pageInfo').textContent = `第 ${pagination.page} / ${pagination.totalPages} 页`;
         document.getElementById('prevPage').disabled = pagination.page <= 1;
         document.getElementById('nextPage').disabled = pagination.page >= pagination.totalPages;
     }
 
-    /**
-     * 显示Cookie详情
-     */
+    /* ==========================================
+     * COOKIE DETAIL
+     * ========================================== */
+
     async showDetail(id) {
         try {
             const data = await api.getCookieDetail(id);
             if (data.code === 200) {
                 const cookie = data.data;
                 const modalBody = document.getElementById('modalBody');
-                const statusMap = {
-                    0: '可用',
-                    1: '使用中',
-                    2: '失效',
-                    3: '黑名单',
-                };
-
+                const statusMap = { 0: '可用', 1: '使用中', 2: '失效', 3: '黑名单' };
                 modalBody.innerHTML = `
                     <div style="line-height: 2;">
                         <p><strong>ID:</strong> ${cookie.id}</p>
@@ -456,8 +810,8 @@ class CookieAdminApp {
                         <p><strong>最后使用:</strong> ${this.formatTime(cookie.last_used_time)}</p>
                         <p><strong>最后检测:</strong> ${this.formatTime(cookie.last_check_time)}</p>
                         <p><strong>有效期至:</strong> ${this.formatTime(cookie.valid_until)}</p>
-                        <p><strong>Cookie:</strong> <code style="background: #f5f5f5; padding: 4px; border-radius: 2px; word-break: break-all;">${cookie.cookie}</code></p>
-                        ${cookie.error_msg ? `<p style="color: #f5222d;"><strong>错误:</strong> ${cookie.error_msg}</p>` : ''}
+                        <p><strong>Cookie:</strong> <code style="background: var(--bg-tertiary); padding: 4px; border-radius: 2px; word-break: break-all;">${this.escapeHtml(cookie.cookie)}</code></p>
+                        ${cookie.error_msg ? `<p style="color: var(--danger-color);"><strong>错误:</strong> ${this.escapeHtml(cookie.error_msg)}</p>` : ''}
                         <p><strong>创建时间:</strong> ${this.formatTime(cookie.created_at)}</p>
                     </div>
                 `;
@@ -469,9 +823,10 @@ class CookieAdminApp {
         }
     }
 
-    /**
-     * 验证单个Cookie
-     */
+    /* ==========================================
+     * SINGLE ACTIONS
+     * ========================================== */
+
     async validateSingle(id) {
         try {
             const data = await api.validateCookie(id);
@@ -485,151 +840,129 @@ class CookieAdminApp {
         }
     }
 
-    /**
-     * 添加单个Cookie到黑名单
-     */
-     blacklistSingle(id) {
-         this.showConfirm('确认操作', '确定要添加到黑名单吗?', async () => {
-             try {
-                 const data = await api.blacklistCookie(id, '手动添加');
-                 if (data.code === 200) {
-                     this.showNotification('已添加到黑名单', 'success');
-                     this.loadCookies();
-                 }
-             } catch (error) {
-                 this.showNotification('操作失败', 'error');
-                 console.error(error);
-             }
-         });
-     }
+    blacklistSingle(id) {
+        this.showConfirm('确认操作', '确定要添加到黑名单吗?', async () => {
+            try {
+                const data = await api.blacklistCookie(id, '手动添加');
+                if (data.code === 200) {
+                    this.showNotification('已添加到黑名单', 'success');
+                    this.loadCookies();
+                }
+            } catch (error) {
+                this.showNotification('操作失败', 'error');
+                console.error(error);
+            }
+        });
+    }
 
-     /**
-      * 编辑Cookie - 打开编辑模态框
-      */
-     async editCookie(id) {
-         try {
-             const data = await api.getCookieDetail(id);
-             if (data.code === 200) {
-                 const cookie = data.data;
-                 // 填充表单字段
-                 document.getElementById('editId').value = cookie.id;
-                 document.getElementById('editIp').value = cookie.ip;
-                 document.getElementById('editCookie').value = cookie.cookie;
-                 
-                 // 格式化时间为datetime-local格式 (YYYY-MM-DDTHH:mm)
-                 if (cookie.valid_until) {
-                     const date = new Date(cookie.valid_until);
-                     const localDatetime = date.toISOString().slice(0, 16);
-                     document.getElementById('editValidUntil').value = localDatetime;
-                 }
-                 
-                 document.getElementById('editStatus').value = cookie.status;
-                 
-                 // 显示模态框
-                 const modal = document.getElementById('editModal');
-                 modal.style.display = 'flex';
-                 this.currentEditingId = id;
-             }
-         } catch (error) {
-             this.showNotification('获取Cookie详情失败', 'error');
-             console.error(error);
-         }
-     }
+    async editCookie(id) {
+        try {
+            const data = await api.getCookieDetail(id);
+            if (data.code === 200) {
+                const cookie = data.data;
+                document.getElementById('editId').value = cookie.id;
+                document.getElementById('editIp').value = cookie.ip;
+                document.getElementById('editCookie').value = cookie.cookie;
 
-     /**
-      * 保存编辑的Cookie
-      */
-     async saveCookie() {
-         const id = document.getElementById('editId').value;
-         const ip = document.getElementById('editIp').value;
-         const cookie = document.getElementById('editCookie').value;
-         const validUntil = document.getElementById('editValidUntil').value;
-         const status = document.getElementById('editStatus').value;
+                if (cookie.valid_until) {
+                    const date = new Date(cookie.valid_until);
+                    const localDatetime = date.toISOString().slice(0, 16);
+                    document.getElementById('editValidUntil').value = localDatetime;
+                }
 
-         // 验证必填字段
-         if (!ip || !cookie) {
-             this.showNotification('请填写IP地址和Cookie值', 'error');
-             return;
-         }
+                document.getElementById('editStatus').value = cookie.status;
 
-         try {
-             // 转换datetime-local为ISO字符串
-             let validUntilTimestamp = null;
-             if (validUntil) {
-                 validUntilTimestamp = new Date(validUntil).toISOString();
-             }
+                const modal = document.getElementById('editModal');
+                modal.style.display = 'flex';
+                this.currentEditingId = id;
+            }
+        } catch (error) {
+            this.showNotification('获取Cookie详情失败', 'error');
+            console.error(error);
+        }
+    }
 
-             const updateData = {
-                 ip,
-                 cookie,
-                 valid_until: validUntilTimestamp,
-                 status: parseInt(status)
-             };
+    async saveCookie() {
+        const id = document.getElementById('editId').value;
+        const ip = document.getElementById('editIp').value;
+        const cookie = document.getElementById('editCookie').value;
+        const validUntil = document.getElementById('editValidUntil').value;
+        const status = document.getElementById('editStatus').value;
 
-             const data = await api.updateCookie(id, updateData);
-             if (data.code === 200) {
-                 this.showNotification('Cookie已保存', 'success');
-                 this.closeEditModal();
-                 this.loadCookies();
-             } else {
-                 this.showNotification(data.message || '保存失败', 'error');
-             }
-         } catch (error) {
-             this.showNotification('保存Cookie失败', 'error');
-             console.error(error);
-         }
-     }
+        if (!ip || !cookie) {
+            this.showNotification('请填写IP地址和Cookie值', 'error');
+            return;
+        }
 
-     /**
-      * 删除单个Cookie
-      */
-     deleteSingle(id) {
-         this.showConfirm('确认操作', '确定要删除这个Cookie吗?', async () => {
-             try {
-                 const data = await api.deleteCookie(id);
-                 if (data.code === 200) {
-                     this.showNotification('Cookie已删除', 'success');
-                     this.loadCookies();
-                 } else {
-                     this.showNotification(data.message || '删除失败', 'error');
-                 }
-             } catch (error) {
-                 this.showNotification('删除Cookie失败', 'error');
-                 console.error(error);
-             }
-         });
-     }
+        try {
+            let validUntilTimestamp = null;
+            if (validUntil) {
+                validUntilTimestamp = new Date(validUntil).toISOString();
+            }
 
-     /**
-      * 释放单个Cookie
-      */
-     async releaseSingle(id) {
-         try {
-             const data = await api.releaseCookie(id);
-             if (data.code === 200) {
-                 this.showNotification('Cookie已释放', 'success');
-                 this.loadCookies();
-             } else {
-                 this.showNotification(data.message || '释放失败', 'error');
-             }
-         } catch (error) {
-             this.showNotification('释放Cookie失败', 'error');
-             console.error(error);
-         }
-     }
+            const updateData = {
+                ip,
+                cookie,
+                valid_until: validUntilTimestamp,
+                status: parseInt(status)
+            };
 
-     /**
-      * 关闭编辑模态框
-      */
-     closeEditModal() {
-         const modal = document.getElementById('editModal');
-         modal.style.display = 'none';
-         this.currentEditingId = null;
-     }
+            const data = await api.updateCookie(id, updateData);
+            if (data.code === 200) {
+                this.showNotification('Cookie已保存', 'success');
+                this.closeEditModal();
+                this.loadCookies();
+            } else {
+                this.showNotification(data.message || '保存失败', 'error');
+            }
+        } catch (error) {
+            this.showNotification('保存Cookie失败', 'error');
+            console.error(error);
+        }
+    }
 
-     /**
-      * 切换导入方式
-      */
+    deleteSingle(id) {
+        this.showConfirm('确认操作', '确定要删除这个Cookie吗?', async () => {
+            try {
+                const data = await api.deleteCookie(id);
+                if (data.code === 200) {
+                    this.showNotification('Cookie已删除', 'success');
+                    this.loadCookies();
+                } else {
+                    this.showNotification(data.message || '删除失败', 'error');
+                }
+            } catch (error) {
+                this.showNotification('删除Cookie失败', 'error');
+                console.error(error);
+            }
+        });
+    }
+
+    async releaseSingle(id) {
+        try {
+            const data = await api.releaseCookie(id);
+            if (data.code === 200) {
+                this.showNotification('Cookie已释放', 'success');
+                this.loadCookies();
+            } else {
+                this.showNotification(data.message || '释放失败', 'error');
+            }
+        } catch (error) {
+            this.showNotification('释放Cookie失败', 'error');
+            console.error(error);
+        }
+    }
+
+    closeEditModal() {
+        const modal = document.getElementById('editModal');
+        modal.style.display = 'none';
+        this.currentEditingId = null;
+    }
+
+    /* ==========================================
+     * IMPORT
+     * ========================================== */
+
     switchImportMethod(e) {
         const method = e.currentTarget.getAttribute('data-method');
         document.querySelectorAll('.method-tab').forEach(tab => {
@@ -643,20 +976,13 @@ class CookieAdminApp {
         document.getElementById(`${method}-method`).classList.add('active');
     }
 
-    /**
-     * 处理文件选择
-     */
     handleFileSelected() {
         const file = document.getElementById('fileInput').files[0];
         if (!file) return;
-
         document.getElementById('fileName').textContent = file.name;
         document.getElementById('fileInfo').style.display = 'block';
     }
 
-    /**
-     * 导入Cookie
-     */
     async importCookies() {
         const method = document.querySelector('.method-tab.active').getAttribute('data-method');
         let cookieLines = [];
@@ -667,7 +993,6 @@ class CookieAdminApp {
                 .map(line => line.trim())
                 .filter(line => line.length > 0);
         } else {
-            // 文件导入逻辑
             const file = document.getElementById('fileInput').files[0];
             if (!file) {
                 this.showNotification('请选择文件', 'warning');
@@ -701,7 +1026,6 @@ class CookieAdminApp {
                 document.getElementById('failCount').textContent = data.data.failed;
                 document.getElementById('progressFill').style.width = '100%';
                 document.getElementById('progressText').textContent = '导入完成！';
-
                 this.showNotification(`导入完成: 成功${data.data.success}条，失败${data.data.failed}条`, 'success');
                 this.loadDashboard();
             }
@@ -711,9 +1035,6 @@ class CookieAdminApp {
         }
     }
 
-    /**
-     * 清除导入表单
-     */
     clearImportForm() {
         document.getElementById('cookieInput').value = '';
         document.getElementById('fileInput').value = '';
@@ -725,16 +1046,16 @@ class CookieAdminApp {
         document.getElementById('progressFill').style.width = '0%';
     }
 
-    /**
-     * 批量验证
-     */
+    /* ==========================================
+     * BATCH OPERATIONS
+     * ========================================== */
+
     async batchValidate() {
         const ids = this.parseBatchInput();
         if (ids.length === 0) {
             this.showNotification('请输入Cookie ID', 'warning');
             return;
         }
-
         try {
             const data = await api.batchValidateCookies(ids);
             if (data.code === 200) {
@@ -748,19 +1069,14 @@ class CookieAdminApp {
         }
     }
 
-    /**
-     * 批量添加黑名单
-     */
     async batchBlacklist() {
         const ids = this.parseBatchInput();
         if (ids.length === 0) {
             this.showNotification('请输入Cookie ID', 'warning');
             return;
         }
-
         this.showConfirm('确认操作', `确定要添加${ids.length}条Cookie到黑名单吗?`, async () => {
             try {
-                // 这里需要后端支持批量黑名单操作
                 for (const id of ids) {
                     await api.blacklistCookie(id, '批量添加');
                 }
@@ -773,16 +1089,12 @@ class CookieAdminApp {
         });
     }
 
-    /**
-     * 批量释放
-     */
     async batchRelease() {
         const ids = this.parseBatchInput();
         if (ids.length === 0) {
             this.showNotification('请输入Cookie ID', 'warning');
             return;
         }
-
         try {
             for (const id of ids) {
                 await api.releaseCookie(id);
@@ -795,16 +1107,12 @@ class CookieAdminApp {
         }
     }
 
-    /**
-     * 批量删除（添加到黑名单）
-     */
     async batchDelete() {
         const ids = this.parseBatchInput();
         if (ids.length === 0) {
             this.showNotification('请输入Cookie ID', 'warning');
             return;
         }
-
         this.showConfirm('确认删除', `确定要删除${ids.length}条Cookie吗?`, async () => {
             try {
                 for (const id of ids) {
@@ -819,55 +1127,43 @@ class CookieAdminApp {
         });
     }
 
-    /**
-     * 解析批量输入
-     */
     parseBatchInput() {
         const input = document.getElementById('batchInput').value.trim();
         if (!input) return [];
-
         return input.split(/[,\n\s]+/).filter(id => id && !isNaN(id)).map(id => parseInt(id));
     }
 
-    /**
-     * 更新批量操作预览
-     */
     updateBatchPreview() {
         const ids = this.parseBatchInput();
         const preview = document.getElementById('batchPreview');
-
         if (ids.length === 0) {
             preview.innerHTML = '<p class="text-muted">选择操作后显示预览...</p>';
         } else {
             preview.innerHTML = `
                 <p><strong>已选择${ids.length}条Cookie:</strong></p>
-                <p style="word-break: break-all; font-family: monospace; background: #f5f5f5; padding: 10px; border-radius: 4px;">
+                <p style="word-break: break-all; font-family: monospace; background: var(--bg-tertiary); padding: 10px; border-radius: 4px;">
                     ${ids.join(', ')}
                 </p>
             `;
         }
     }
 
-    /**
-     * 显示批量操作结果
-     */
     showBatchResults(results) {
         const resultsDiv = document.getElementById('batchResults');
         const resultsList = document.getElementById('batchResultsList');
-
         resultsList.innerHTML = results.map(result => `
             <div class="result-item ${result.valid ? 'result-success' : 'result-error'}">
                 <strong>ID: ${result.id}</strong> - ${result.ip}
-                <p>${result.valid ? '✓ 有效' : '✗ 无效'}</p>
+                <p>${result.valid ? '有效' : '无效'}</p>
             </div>
         `).join('');
-
         resultsDiv.style.display = 'block';
     }
 
-    /**
-     * 导出为CSV
-     */
+    /* ==========================================
+     * EXPORT & CLEANUP
+     * ========================================== */
+
     async exportCSV() {
         try {
             const data = await api.getCookies(1, 999999);
@@ -883,9 +1179,6 @@ class CookieAdminApp {
         }
     }
 
-    /**
-     * 导出为JSON
-     */
     async exportJSON() {
         try {
             const data = await api.getCookies(1, 999999);
@@ -900,9 +1193,6 @@ class CookieAdminApp {
         }
     }
 
-    /**
-     * 清理失效Cookie
-     */
     cleanInvalid() {
         this.showConfirm('确认操作', '确定要清理所有失效的Cookie吗?', async () => {
             try {
@@ -922,16 +1212,12 @@ class CookieAdminApp {
         });
     }
 
-    /**
-     * 清空黑名单
-     */
     cleanBlacklist() {
         this.showConfirm('确认操作', '确定要清空黑名单吗?', async () => {
             try {
                 const data = await api.getCookies(1, 999999, '3');
                 if (data.code === 200) {
                     const count = data.data.data.length;
-                    // 这里需要后端支持删除操作
                     this.showNotification(`黑名单中有${count}条Cookie`, 'info');
                 }
             } catch (error) {
@@ -941,9 +1227,10 @@ class CookieAdminApp {
         });
     }
 
-    /**
-     * 全选/取消全选
-     */
+    /* ==========================================
+     * SELECT ALL
+     * ========================================== */
+
     selectAllCookies(e) {
         document.querySelectorAll('.table-checkbox').forEach(checkbox => {
             if (checkbox.id !== 'selectAll') {
@@ -952,45 +1239,32 @@ class CookieAdminApp {
         });
     }
 
-    /**
-     * 更新全选状态
-     */
     updateSelectAll() {
         const checkboxes = document.querySelectorAll('.table-checkbox:not(#selectAll)');
         const checked = Array.from(checkboxes).filter(cb => cb.checked).length;
         document.getElementById('selectAll').checked = checked === checkboxes.length && checkboxes.length > 0;
     }
 
-    /**
-     * 检查服务器状态
-     */
+    /* ==========================================
+     * SERVER STATUS
+     * ========================================== */
+
     async checkServerStatus() {
         try {
             await api.healthCheck();
-            document.getElementById('serverStatus').style.color = '#52c41a';
+            document.getElementById('serverStatus').style.color = '#10b981';
             document.getElementById('apiUrl').value = '/api';
             document.getElementById('serverInfo').value = '在线';
         } catch (error) {
-            document.getElementById('serverStatus').style.color = '#f5222d';
+            document.getElementById('serverStatus').style.color = '#ef4444';
             document.getElementById('serverInfo').value = '离线';
         }
     }
 
-    /**
-     * 设置自动刷新
-     */
-    setupAutoRefresh() {
-        // 每30秒刷新一次仪表板
-        setInterval(() => {
-            if (document.getElementById('dashboard').classList.contains('active')) {
-                this.loadDashboard();
-            }
-        }, 30000);
-    }
+    /* ==========================================
+     * NOTIFICATIONS (Enhanced)
+     * ========================================== */
 
-    /**
-     * 显示通知
-     */
     showNotification(message, type = 'info') {
         const notification = document.getElementById('notification');
         const icons = {
@@ -1005,19 +1279,33 @@ class CookieAdminApp {
         notify.innerHTML = `
             <i class="notify-icon ${icons[type]}"></i>
             <div class="notify-text">
-                <div class="notify-message">${message}</div>
+                <div class="notify-message">${this.escapeHtml(message)}</div>
             </div>
+            <button class="notify-close" title="关闭">&times;</button>
+            <div class="notify-progress"></div>
         `;
 
+        // Close button
+        notify.querySelector('.notify-close').addEventListener('click', () => {
+            notify.classList.add('removing');
+            setTimeout(() => notify.remove(), 300);
+        });
+
         notification.appendChild(notify);
+
+        // Auto-dismiss
         setTimeout(() => {
-            notify.remove();
+            if (notify.parentNode) {
+                notify.classList.add('removing');
+                setTimeout(() => notify.remove(), 300);
+            }
         }, 3000);
     }
 
-    /**
-     * 显示确认对话框
-     */
+    /* ==========================================
+     * CONFIRM DIALOG
+     * ========================================== */
+
     showConfirm(title, message, onConfirm) {
         document.getElementById('confirmTitle').textContent = title;
         document.getElementById('confirmMessage').textContent = message;
@@ -1030,22 +1318,19 @@ class CookieAdminApp {
         };
     }
 
-    /**
-     * 格式化时间
-     */
+    /* ==========================================
+     * UTILITIES
+     * ========================================== */
+
     formatTime(time) {
         if (!time) return '-';
         const date = new Date(time);
         return date.toLocaleString('zh-CN');
     }
 
-    /**
-     * 生成CSV
-     */
     generateCSV(cookies) {
         const headers = ['ID', 'IP', '状态', '使用次数', '最后使用', '最后检测'];
         const statusMap = { 0: '可用', 1: '使用中', 2: '失效', 3: '黑名单' };
-
         const rows = cookies.map(cookie => [
             cookie.id,
             cookie.ip,
@@ -1054,13 +1339,9 @@ class CookieAdminApp {
             this.formatTime(cookie.last_used_time),
             this.formatTime(cookie.last_check_time),
         ]);
-
         return [headers, ...rows].map(row => row.map(cell => `"${cell}"`).join(',')).join('\n');
     }
 
-    /**
-     * 下载文件
-     */
     downloadFile(content, filename, type) {
         const blob = new Blob([content], { type });
         const url = URL.createObjectURL(blob);
@@ -1072,8 +1353,8 @@ class CookieAdminApp {
     }
 }
 
-// 应用启动 - 等待DOM完全加载
-let app; // 声明为全局变量
+// 应用启动
+let app;
 
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
